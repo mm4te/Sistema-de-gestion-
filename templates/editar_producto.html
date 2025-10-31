@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editar Producto</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>✏️ Editar Producto</h1>
+      <nav>
+        <a href="/">Inicio</a>
+        <a href="/inventario">Inventario</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/inventario" class="back-link">← Volver al inventario</a>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post">
+        <input type="hidden" name="id" value="{{ producto[0] }}">
+
+        <label for="codigo">Código *</label>
+        <input type="text" id="codigo" name="codigo" value="{{ producto[1] }}" required>
+
+        <label for="descripcion">Descripción *</label>
+        <input type="text" id="descripcion" name="descripcion" value="{{ producto[2] }}" required>
+
+        <label for="precio">Precio ($) *</label>
+        <input type="number" id="precio" name="precio" step="0.01" min="0.01" value="{{ producto[3] }}" required>
+
+        <label for="stock">Stock *</label>
+        <input type="number" id="stock" name="stock" min="0" value="{{ producto[4] }}" required>
+
+        <button type="submit">💾 Guardar Cambios</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cargar Productos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <header>
+    <div class="container">
+      <h1>📤 Cargar Productos</h1>
+      <nav>
+        <a href="/inventario">Inventario</a>
+        <a href="/ventas">Ventas</a>
+        <a href="/cargar_excel">Cargar Excel</a>
+        <a href="/reporte/excel">Reporte</a>
+        <a href="/logout" style="color: #e63946; margin-left: 20px;">🚪 Cerrar sesión</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/" class="back-link">← Volver al inicio</a>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+        <p class="{{ category }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <form method="post" enctype="multipart/form-data">
+        <label for="archivo">Selecciona tu archivo Excel (.xlsx):</label>
+        <input type="file" name="archivo" id="archivo" accept=".xlsx" required>
+        <button type="submit">Subir Productos</button>
+      </form>
+
+      <div style="margin-top: 20px; padding: 15px; background: #f1f3f9; border-radius: 8px;">
+        <h4>Formato requerido:</h4>
+        <p>El archivo debe tener las siguientes columnas:</p>
+        <ul>
+          <li><strong>codigo</strong> (texto o número, único)</li>
+          <li><strong>descripcion</strong> (texto)</li>
+          <li><strong>precio</strong> (número, ej. 12.99)</li>
+          <li><strong>stock</strong> (número entero, ej. 50)</li>
+        </ul>
+        <p>🟢 Guarda como <code>.xlsx</code> (no .xls ni .csv)</p>
+      </div>
+    </main>
+  </div>
+</body>
+
+</html>

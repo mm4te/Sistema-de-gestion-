@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inventario</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    function confirmarEliminacion(nombre) {
+      return confirm(`¿Eliminar el producto "${nombre}"? Esta acción no se puede deshacer.`);
+    }
+
+    // Búsqueda automática con retardo
+    document.addEventListener('DOMContentLoaded', function () {
+      const searchInput = document.getElementById('search');
+      if (!searchInput) return;
+
+      let timeoutId;
+      searchInput.addEventListener('input', function () {
+        clearTimeout(timeoutId);
+        const query = this.value.trim();
+        // Si está vacío, ir a inventario sin búsqueda
+        if (query === '') {
+          window.location.href = '{{ url_for("inventario") }}';
+          return;
+        }
+        // Esperar 500ms antes de redirigir
+        timeoutId = setTimeout(() => {
+          const url = new URL('{{ url_for("inventario") }}', window.location.origin);
+          url.searchParams.set('q', query);
+          url.searchParams.set('page', '1'); // Siempre ir a página 1 al buscar
+          window.location.href = url.toString();
+        }, 500);
+      });
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>📦 Inventario ({{ total }} productos)</h1>
+      <nav>
+        <a href="/">Inicio</a>
+        <a href="/ventas">Ventas</a>
+        <a href="/logout" style="color: #e63946; margin-left: 20px;">🚪 Cerrar sesión</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/" class="back-link">← Volver al inicio</a>
+      <a href="/cargar_excel" class="back-link">📤 Cargar desde Excel</a>
+      <a href="/nuevo_producto" class="back-link" style="margin-left: 15px; background: #2ecc71; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none;">➕ Nuevo Producto</a>
+
+      <!-- Barra de búsqueda automática -->
+      <div style="margin: 20px 0;">
+        <label for="search" style="display: block; margin-bottom: 8px; font-weight: 600;">🔍 Buscar en todo el inventario:</label>
+        <input type="text" id="search" value="{{ search_query }}" 
+               placeholder="Escribe código o descripción... (ej: arroz)" 
+               style="width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+        {% if search_query %}
+          <div style="margin-top: 10px;">
+            <a href="{{ url_for('inventario') }}" style="color: #4361ee; text-decoration: none; font-weight: 500;">← Ver todos los productos</a>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if productos %}
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in productos %}
+            <tr>
+              <td data-label="Código">{{ p[1] }}</td>
+              <td data-label="Descripción">{{ p[2] }}</td>
+              <td data-label="Precio">${{ "%.2f"|format(p[3]) }}</td>
+              <td data-label="Stock">{{ p[4] }}</td>
+              <td data-label="Acciones">
+                <a href="/editar_producto/{{ p[0] }}" style="margin-right: 8px; color: #4361ee; text-decoration: none;">✏️ Editar</a>
+                <form method="post" action="/eliminar_producto/{{ p[0] }}" style="display: inline;" onsubmit="return confirmarEliminacion('{{ p[2] }}')">
+                  <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: 1rem;">🗑️ Eliminar</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <!-- Paginación -->
+        {% if total_pages > 1 %}
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+          {% if page > 1 %}
+            <a href="{{ url_for('inventario', page=page-1, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
+          {% endif %}
+
+          {% for p in range(1, total_pages+1) %}
+            {% if p == page %}
+              <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
+            {% else %}
+              <a href="{{ url_for('inventario', page=p, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
+            {% endif %}
+          {% endfor %}
+
+          {% if page < total_pages %}
+            <a href="{{ url_for('inventario', page=page+1, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
+          {% endif %}
+        </div>
+        {% endif %}
+
+      {% else %}
+        <p>No se encontraron productos.</p>
+      {% endif %}
+    </main>
+  </div>
+</body>
+</html>

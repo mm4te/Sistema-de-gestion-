@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema de Comenda Deco</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <header>
+    <div class="container">
+      <h1>💼 Comenda Deco</h1>
+      <nav>
+        <a href="/inventario">Inventario</a>
+        <a href="/ventas">Ventas</a>
+        <a href="/cargar_excel">Cargar Excel</a>
+        <a href="/reporte/excel">Reporte</a>
+        <a href="/logout" style="color: #e63946; margin-left: 20px;">🚪 Cerrar sesión</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <h2>Panel Principal</h2>
+      <p>Selecciona una opción para comenzar:</p>
+      <ul style="list-style: none; padding: 0;">
+        <!-- En templates/index.html, dentro del <ul> -->
+        <li><a href="/inventario" class="back-link">📊 Inventario</a></li>
+        <li><a href="/ventas" class="back-link">🛒 Nueva Venta</a></li>
+        <li><a href="/clientes" class="back-link">👥 Clientes</a></li>
+        <li><a href="/ventas_historial" class="back-link">📈 Ventas</a></li>
+        <li><a href="/cargar_excel" class="back-link">📤 Cargar Productos</a></li>
+        <li><a href="/reporte/excel" class="back-link">📥 Reporte Mensual</a></li>
+      </ul>
+    </main>
+  </div>
+</body>
+
+</html>

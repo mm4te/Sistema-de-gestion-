@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo Producto</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>➕ Nuevo Producto</h1>
+      <nav>
+        <a href="/">Inicio</a>
+        <a href="/inventario">Inventario</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/inventario" class="back-link">← Volver al inventario</a>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post">
+        <label for="codigo">Código del producto *</label>
+        <input type="text" id="codigo" name="codigo" required placeholder="Ej: P001">
+
+        <label for="descripcion">Descripción *</label>
+        <input type="text" id="descripcion" name="descripcion" required placeholder="Ej: Arroz 1 kg">
+
+        <label for="precio">Precio ($) *</label>
+        <input type="number" id="precio" name="precio" step="0.01" min="0.01" required placeholder="Ej: 2.50">
+
+        <label for="stock">Stock inicial *</label>
+        <input type="number" id="stock" name="stock" min="0" required placeholder="Ej: 100">
+
+        <button type="submit">✅ Guardar Producto</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>

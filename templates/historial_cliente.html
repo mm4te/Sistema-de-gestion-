@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Historial - {{ cliente[1] }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>📋 Historial de {{ cliente[1] }}</h1>
+      <nav>
+        <a href="/clientes">Clientes</a>
+        <a href="/ventas_historial">Todas las Ventas</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/clientes" class="back-link">← Volver a clientes</a>
+      <p><strong>Teléfono:</strong> {{ cliente[2] or 'No registrado' }}</p>
+
+      {% if ventas %}
+        {% for v in ventas %}
+          <div style="border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0;">
+            <h4>Venta #{{ v.id }} - {{ v.fecha }}</h4>
+            <p><strong>Total:</strong> ${{ "%.2f"|format(v.total) }}</p>
+            <h5>Productos:</h5>
+            <ul style="list-style: none; padding-left: 0;">
+              {% for item in v.detalle %}
+                <li>{{ item[1] }} x {{ item[0] }} — ${{ "%.2f"|format(item[2]) }} c/u</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>Este cliente no tiene ventas registradas.</p>
+      {% endif %}
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!-- Similar a nuevo_producto.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo Cliente</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>➕ Nuevo Cliente</h1>
+      <nav>
+        <a href="/">Inicio</a>
+        <a href="/clientes">Clientes</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <a href="/clientes" class="back-link">← Volver a clientes</a>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post">
+        <label for="nombre">Nombre *</label>
+        <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez">
+
+        <label for="telefono">Teléfono (opcional)</label>
+        <input type="text" id="telefono" name="telefono" placeholder="Ej: +54 9 11 1234-5678">
+
+        <button type="submit">✅ Guardar Cliente</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>
