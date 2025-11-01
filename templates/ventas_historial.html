@@ -1,80 +1,105 @@
 <!DOCTYPE html>
 <html>
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ventas</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
-  <header>
-    <div class="container">
-      <h1>🛒 Ventas ({{ total }})</h1>
-      <nav>
-        <a href="/">Inicio</a>
-        <a href="/inventario">Inventario</a>
-        <a href="/clientes">Clientes</a>
-        <a href="/logout" style="color: #e63946; margin-left: 20px;">🚪 Cerrar sesión</a>
-      </nav>
+  <div class="layout">
+    <div class="sidebar">
+      <h2><span> Comenda Deco</span></h2>
+      <a href="/"><span>📊 Inicio</span></a>
+      <a href="/inventario"><span>📦 Inventario</span></a>
+      <a href="/ventas"><span>🛒 Ventas</span></a>
+      <a href="/clientes"><span>👥 Clientes</span></a>
+      <a href="/ventas_historial" class="active"><span>📈 Ventas Hist.</span></a>
+       
+      <a href="/reporte/excel"><span>📥 Reporte</span></a>
+      <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
-  </header>
 
-  <div class="container">
-    <main>
-      <a href="/" class="back-link">← Volver al inicio</a>
-
-      {% if ventas %}
-      <table>
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th>Total</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for v in ventas %}
-          <tr>
-            <td data-label="Fecha">{{ v[1] }}</td>
-            <td data-label="Cliente">{{ v[2] }}</td>
-            <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
-            <td data-label="Acciones">
-              <a href="/venta/{{ v[0] }}" style="color: #4361ee; text-decoration: none;">🔍 Ver detalle</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-
-      <!-- Paginación -->
-      {% if total_pages > 1 %}
-      <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
-        {% if page > 1 %}
-        <a href="{{ url_for('ventas_historial', page=page-1) }}" class="back-link"
-          style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
-        {% endif %}
-        {% for p in range(1, total_pages+1) %}
-        {% if p == page %}
-        <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p
-          }}</span>
-        {% else %}
-        <a href="{{ url_for('ventas_historial', page=p) }}" class="back-link"
-          style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
-        {% endif %}
-        {% endfor %}
-        {% if page < total_pages %} <a href="{{ url_for('ventas_historial', page=page+1) }}" class="back-link"
-          style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
+    <div class="main-content">
+      <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+              {% endfor %}
+            </div>
           {% endif %}
-      </div>
-      {% endif %}
-      {% else %}
-      <p>No hay ventas registradas.</p>
-      {% endif %}
-    </main>
+        {% endwith %}
+
+        <h1>📈 Historial de Ventas ({{ total }})</h1>
+
+        <!-- Buscador por ID -->
+        <div style="margin: 20px 0;">
+          <form method="get" style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+            <div>
+              <label for="search-id" style="display: block; margin-bottom: 8px; font-weight: 600;">🔍 Buscar por ID de venta:</label>
+              <input type="text" id="search-id" name="id" value="{{ search_id }}" 
+                     placeholder="Ej: 123" 
+                     style="width: 150px; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+            </div>
+            <button type="submit" style="padding: 12px 20px; background: #4361ee; color: white; border: none; border-radius: 8px; cursor: pointer;">Buscar</button>
+            {% if search_id %}
+              <a href="{{ url_for('ventas_historial') }}" style="padding: 12px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 8px;">Ver todas</a>
+            {% endif %}
+          </form>
+        </div>
+
+        {% if ventas %}
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in ventas %}
+              <tr>
+                <td data-label="ID">{{ v[0] }}</td>
+                <td data-label="Fecha">{{ v[1] }}</td>
+                <td data-label="Cliente">{{ v[2] }}</td>
+                <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
+                <td data-label="Acciones">
+                  <a href="/venta/{{ v[0] }}" style="color: #4361ee; text-decoration: none;">🔍 Ver detalle</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <!-- Paginación (solo si no se está buscando por ID) -->
+          {% if not search_id and total_pages > 1 %}
+          <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            {% if page > 1 %}
+              <a href="{{ url_for('ventas_historial', page=page-1) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
+            {% endif %}
+            {% for p in range(1, total_pages+1) %}
+              {% if p == page %}
+                <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
+              {% else %}
+                <a href="{{ url_for('ventas_historial', page=p) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
+              {% endif %}
+            {% endfor %}
+            {% if page < total_pages %}
+              <a href="{{ url_for('ventas_historial', page=page+1) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
+            {% endif %}
+          </div>
+          {% endif %}
+
+        {% else %}
+          <p>No se encontraron ventas.</p>
+        {% endif %}
+      </main>
+    </div>
   </div>
 </body>
-
 </html>

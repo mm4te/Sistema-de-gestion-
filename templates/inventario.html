@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,9 +12,9 @@
     }
   </script>
 </head>
+
 <body>
   <div class="layout">
-    <!-- Sidebar izquierdo -->
     <div class="sidebar">
       <h2><span>💼 Negocio</span></h2>
       <a href="/"><span>📊 Inicio</span></a>
@@ -26,98 +27,144 @@
       <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
 
-    <!-- Contenido principal -->
     <div class="main-content">
       <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-messages">
-              {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <p class="{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
           <h1>📦 Inventario ({{ total }} productos)</h1>
           <div>
             <a href="/cargar_excel" class="back-link" style="margin-right: 10px;">📤 Cargar Excel</a>
-            <a href="/nuevo_producto" class="back-link" style="background: #2ecc71; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none;">➕ Nuevo Producto</a>
+            <a href="/nuevo_producto" class="back-link"
+              style="background: #2ecc71; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none;">➕
+              Nuevo Producto</a>
           </div>
         </div>
 
-        <!-- Barra de búsqueda -->
-        <div style="margin: 20px 0;">
-          <form method="get" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: end;">
+        <!-- Formulario de filtros MANUALES -->
+        <form method="get"
+          style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items:end;">
+            <!-- Búsqueda -->
             <div style="flex: 1; min-width: 200px;">
-              <label for="search" style="display: block; margin-bottom: 8px; font-weight: 600;">🔍 Buscar en todo el inventario:</label>
-              <input type="text" id="search" name="q" value="{{ search_query }}" 
-                     placeholder="Código o descripción..." 
-                     style="width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+              <label for="q" style="display: block; margin-bottom: 8px; font-weight: 600;">🔍 Buscar:</label>
+              <input type="text" id="q" name="q" value="{{ search_query }}" placeholder="Código o descripción..."
+                style="width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
             </div>
-            <button type="submit" style="padding: 12px 20px; background: #4361ee; color: white; border: none; border-radius: 8px; cursor: pointer;">Buscar</button>
-            {% if search_query %}
-              <a href="{{ url_for('inventario') }}" style="padding: 12px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 8px;">Limpiar</a>
+
+            <!-- Filtro de stock -->
+            <div>
+              <label for="stock" style="display: block; margin-bottom: 8px; font-weight: 600;">Filtrar por
+                stock:</label>
+              <select id="stock" name="stock"
+                style="padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+                <option value="">Todos los productos</option>
+                <option value="sin_stock" {% if filtro_stock=='sin_stock' %}selected{% endif %}>Sin stock</option>
+              </select>
+            </div>
+
+            <!-- Ordenamiento por precio -->
+            <div>
+              <label for="orden" style="display: block; margin-bottom: 8px; font-weight: 600;">Ordenar por
+                precio:</label>
+              <select id="orden" name="orden"
+                style="padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+                <option value="">Sin ordenar</option>
+                <option value="mayor" {% if orden_precio=='mayor' %}selected{% endif %}>Mayor a menor</option>
+                <option value="menor" {% if orden_precio=='menor' %}selected{% endif %}>Menor a mayor</option>
+              </select>
+            </div>
+
+            <!-- Botón aplicar -->
+            <div>
+              <button type="submit"
+                style="padding: 12px 20px; background: #4361ee; color: white; border: none; border-radius: 8px; cursor: pointer; height: fit-content;">Aplicar
+                filtros</button>
+            </div>
+
+            <!-- Botón limpiar -->
+            {% if search_query or filtro_stock or orden_precio %}
+            <div>
+              <a href="{{ url_for('inventario') }}"
+                style="padding: 12px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 8px; height: fit-content; display: inline-block;">Limpiar</a>
+            </div>
             {% endif %}
-          </form>
-        </div>
+          </div>
+        </form>
 
         {% if productos %}
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Descripción</th>
-                <th>Precio</th>
-                <th>Stock</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in productos %}
-              <tr>
-                <td data-label="Código">{{ p[1] }}</td>
-                <td data-label="Descripción">{{ p[2] }}</td>
-                <td data-label="Precio">${{ "%.2f"|format(p[3]) }}</td>
-                <td data-label="Stock">{{ p[4] }}</td>
-                <td data-label="Acciones">
-                  <a href="/editar_producto/{{ p[0] }}" style="margin-right: 8px; color: #4361ee; text-decoration: none;">✏️ Editar</a>
-                  <form method="post" action="/eliminar_producto/{{ p[0] }}" style="display: inline;" onsubmit="return confirmarEliminacion('{{ p[2] }}')">
-                    <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: 1rem;">🗑️ Eliminar</button>
-                  </form>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-
-          <!-- Paginación -->
-          {% if total_pages > 1 %}
-          <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
-            {% if page > 1 %}
-              <a href="{{ url_for('inventario', page=page-1, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
-            {% endif %}
-
-            {% for p in range(1, total_pages+1) %}
-              {% if p == page %}
-                <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
-              {% else %}
-                <a href="{{ url_for('inventario', page=p, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
-              {% endif %}
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in productos %}
+            <tr>
+              <td data-label="Código">{{ p[1] }}</td>
+              <td data-label="Descripción">{{ p[2] }}</td>
+              <td data-label="Precio">${{ "%.2f"|format(p[3]) }}</td>
+              <td data-label="Stock">{{ p[4] }}</td>
+              <td data-label="Acciones">
+                <a href="/editar_producto/{{ p[0] }}"
+                  style="margin-right: 8px; color: #4361ee; text-decoration: none;">✏️ Editar</a>
+                <form method="post" action="/eliminar_producto/{{ p[0] }}" style="display: inline;"
+                  onsubmit="return confirmarEliminacion('{{ p[2] }}')">
+                  <button type="submit"
+                    style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: 1rem;">🗑️
+                    Eliminar</button>
+                </form>
+              </td>
+            </tr>
             {% endfor %}
+          </tbody>
+        </table>
 
-            {% if page < total_pages %}
-              <a href="{{ url_for('inventario', page=page+1, q=search_query) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
-            {% endif %}
-          </div>
+        <!-- Paginación -->
+        {% if total_pages > 1 %}
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+          {% if page > 1 %}
+          <a href="{{ url_for('inventario', page=page-1, q=search_query, stock=filtro_stock, orden=orden_precio) }}"
+            class="back-link" style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
           {% endif %}
 
+          {% for p in range(1, total_pages+1) %}
+          {% if p == page %}
+          <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{
+            p }}</span>
+          {% else %}
+          <a href="{{ url_for('inventario', page=p, q=search_query, stock=filtro_stock, orden=orden_precio) }}"
+            class="back-link" style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
+          {% endif %}
+          {% endfor %}
+
+          {% if page < total_pages %} <a
+            href="{{ url_for('inventario', page=page+1, q=search_query, stock=filtro_stock, orden=orden_precio) }}"
+            class="back-link" style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% else %}
-          <p>No se encontraron productos.</p>
+        <p>No se encontraron productos.</p>
         {% endif %}
       </main>
     </div>
   </div>
 </body>
+
 </html>

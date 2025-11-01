@@ -8,19 +8,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header>
-    <div class="container">
-      <h1>👥 Clientes ({{ total }})</h1>
-      <nav>
-        <a href="/">Inicio</a>
-        <a href="/inventario">Inventario</a>
-        <a href="/ventas_historial">Ventas</a>
-        <a href="/logout" style="color: #e63946; margin-left: 20px;">🚪 Cerrar sesión</a>
-      </nav>
+  <div class="layout">
+    <!-- Sidebar izquierdo -->
+    <div class="sidebar">
+      <h2><span> Comenda Deco</span></h2>
+      <a href="/"><span>📊 Inicio</span></a>
+      <a href="/inventario" ><span>📦 Inventario</span></a>
+      <a href="/ventas"><span>🛒 Ventas</span></a>
+      <a href="/clientes" class="active"><span>👥 Clientes</span></a>
+      <a href="/ventas_historial"><span>📈 Ventas Hist.</span></a>
+       
+      <a href="/reporte/excel"><span>📥 Reporte</span></a>
+      <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
-  </header>
-
-  <div class="container">
+    
+    <div class="container">
+    <h1>👥 Clientes ({{ total }})</h1>
     <main>
       <a href="/" class="back-link">← Volver al inicio</a>
       <a href="/nuevo_cliente" class="back-link" style="margin-left: 15px; background: #2ecc71; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none;">➕ Nuevo Cliente</a>

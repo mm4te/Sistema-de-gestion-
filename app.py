@@ -92,7 +92,48 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html')
+    conn = sqlite3.connect('negocio.db')
+    c = conn.cursor()
+    
+    # Total de productos
+    total_productos = c.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
+    
+    # Total de clientes
+    total_clientes = c.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    
+    # Ventas hoy
+    hoy = datetime.now().strftime('%Y-%m-%d')
+    ventas_hoy = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)).fetchone()
+    cantidad_ventas_hoy = ventas_hoy[0]
+    total_ventas_hoy = ventas_hoy[1]
+    
+    # Ventas este mes
+    mes_actual = datetime.now().strftime('%Y-%m')
+    ventas_mes = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)).fetchone()
+    cantidad_ventas_mes = ventas_mes[0]
+    total_ventas_mes = ventas_mes[1]
+    
+    # Últimas 5 ventas
+    ultimas_ventas = c.execute("""
+        SELECT v.id, v.fecha, c.nombre, v.total
+        FROM ventas v
+        JOIN clientes c ON v.cliente_id = c.id
+        ORDER BY v.fecha DESC
+        LIMIT 5
+    """).fetchall()
+    
+    conn.close()
+    
+    return render_template(
+        'index.html',
+        total_productos=total_productos,
+        total_clientes=total_clientes,
+        cantidad_ventas_hoy=cantidad_ventas_hoy,
+        total_ventas_hoy=total_ventas_hoy,
+        cantidad_ventas_mes=cantidad_ventas_mes,
+        total_ventas_mes=total_ventas_mes,
+        ultimas_ventas=ultimas_ventas
+    )
 
 # === INVENTARIO ===
 @app.route('/inventario')
@@ -100,22 +141,37 @@ def index():
 def inventario():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '').strip()
+    filtro_stock = request.args.get('stock', '')
+    orden_precio = request.args.get('orden', '')
     per_page = 20
 
     conn = sqlite3.connect('negocio.db')
+    condiciones = []
+    params = []
     
     if search_query:
-        query_count = "SELECT COUNT(*) FROM productos WHERE codigo LIKE ? OR descripcion LIKE ?"
-        query_data = (f'%{search_query}%', f'%{search_query}%')
-        total = conn.execute(query_count, query_data).fetchone()[0]
-        query_select = "SELECT * FROM productos WHERE codigo LIKE ? OR descripcion LIKE ? LIMIT ? OFFSET ?"
-        productos = conn.execute(query_select, (*query_data, per_page, (page - 1) * per_page)).fetchall()
+        condiciones.append("(codigo LIKE ? OR descripcion LIKE ?)")
+        params.extend([f'%{search_query}%', f'%{search_query}%'])
+    
+    if filtro_stock == 'sin_stock':
+        condiciones.append("stock = 0")
+    
+    where_clause = "WHERE " + " AND ".join(condiciones) if condiciones else ""
+    
+    order_clause = ""
+    if orden_precio == 'mayor':
+        order_clause = "ORDER BY precio DESC"
+    elif orden_precio == 'menor':
+        order_clause = "ORDER BY precio ASC"
     else:
-        total = conn.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
-        productos = conn.execute(
-            "SELECT * FROM productos LIMIT ? OFFSET ?", 
-            (per_page, (page - 1) * per_page)
-        ).fetchall()
+        order_clause = "ORDER BY id DESC"
+    
+    count_query = f"SELECT COUNT(*) FROM productos {where_clause}"
+    total = conn.execute(count_query, params).fetchone()[0]
+    
+    offset = (page - 1) * per_page
+    select_query = f"SELECT * FROM productos {where_clause} {order_clause} LIMIT ? OFFSET ?"
+    productos = conn.execute(select_query, (*params, per_page, offset)).fetchall()
     
     conn.close()
     total_pages = (total + per_page - 1) // per_page
@@ -126,9 +182,10 @@ def inventario():
         page=page,
         total_pages=total_pages,
         total=total,
-        search_query=search_query
+        search_query=search_query,
+        filtro_stock=filtro_stock,
+        orden_precio=orden_precio
     )
-
 @app.route('/nuevo_producto', methods=['GET', 'POST'])
 @login_required
 def nuevo_producto():
@@ -560,21 +617,73 @@ def confirmar_venta():
 @login_required
 def ventas_historial():
     page = request.args.get('page', 1, type=int)
+    search_id = request.args.get('id', '').strip()  # Búsqueda por ID
     per_page = 20
+
     conn = sqlite3.connect('negocio.db')
-    total = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
-    offset = (page - 1) * per_page
-    ventas = conn.execute("""
-        SELECT v.id, v.fecha, c.nombre, v.total
+    
+    if search_id:
+        # Buscar venta específica por ID
+        try:
+            venta_id = int(search_id)
+            total = 1
+            ventas = conn.execute("""
+                SELECT v.id, v.fecha, c.nombre, v.total
+                FROM ventas v
+                JOIN clientes c ON v.cliente_id = c.id
+                WHERE v.id = ?
+                ORDER BY v.fecha DESC
+            """, (venta_id,)).fetchall()
+            total_pages = 1
+            page = 1
+        except ValueError:
+            flash("❌ El ID debe ser un número", "error")
+            ventas = []
+            total = 0
+            total_pages = 0
+    else:
+        # Mostrar todas las ventas (con paginación)
+        total = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
+        offset = (page - 1) * per_page
+        ventas = conn.execute("""
+            SELECT v.id, v.fecha, c.nombre, v.total
+            FROM ventas v
+            JOIN clientes c ON v.cliente_id = c.id
+            ORDER BY v.fecha DESC
+            LIMIT ? OFFSET ?
+        """, (per_page, offset)).fetchall()
+        total_pages = (total + per_page - 1) // per_page
+    
+    conn.close()
+    return render_template('ventas_historial.html', ventas=ventas, page=page, total_pages=total_pages, total=total, search_id=search_id)
+@app.route('/venta/<int:venta_id>')
+@login_required
+def detalle_venta(venta_id):
+    conn = sqlite3.connect('negocio.db')
+    # Obtener datos de la venta
+    venta = conn.execute("""
+        SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
-        ORDER BY v.fecha DESC
-        LIMIT ? OFFSET ?
-    """, (per_page, offset)).fetchall()
+        WHERE v.id = ?
+    """, (venta_id,)).fetchone()
+    
+    if not venta:
+        conn.close()
+        flash("Venta no encontrada", "error")
+        return redirect(url_for('ventas_historial'))
+    
+    # Obtener productos de la venta
+    productos = conn.execute("""
+        SELECT p.descripcion, dv.cantidad, dv.precio_unitario
+        FROM detalle_venta dv
+        JOIN productos p ON dv.producto_id = p.id
+        WHERE dv.venta_id = ?
+    """, (venta_id,)).fetchall()
+    
     conn.close()
-    total_pages = (total + per_page - 1) // per_page
-    return render_template('ventas_historial.html', ventas=ventas, page=page, total_pages=total_pages, total=total)
-
+    
+    return render_template('detalle_venta.html', venta=venta, productos=productos)
 # === REPORTES ===
 @app.route('/reporte/<formato>')
 @login_required
