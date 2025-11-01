@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ventas</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
   <header>
     <div class="container">
@@ -24,47 +26,55 @@
       <a href="/" class="back-link">← Volver al inicio</a>
 
       {% if ventas %}
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for v in ventas %}
-            <tr>
-              <td data-label="Fecha">{{ v[1] }}</td>
-              <td data-label="Cliente">{{ v[2] }}</td>
-              <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-
-        <!-- Paginación -->
-        {% if total_pages > 1 %}
-        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
-          {% if page > 1 %}
-            <a href="{{ url_for('ventas_historial', page=page-1) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
-          {% endif %}
-          {% for p in range(1, total_pages+1) %}
-            {% if p == page %}
-              <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
-            {% else %}
-              <a href="{{ url_for('ventas_historial', page=p) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
-            {% endif %}
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in ventas %}
+          <tr>
+            <td data-label="Fecha">{{ v[1] }}</td>
+            <td data-label="Cliente">{{ v[2] }}</td>
+            <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
+            <td data-label="Acciones">
+              <a href="/venta/{{ v[0] }}" style="color: #4361ee; text-decoration: none;">🔍 Ver detalle</a>
+            </td>
+          </tr>
           {% endfor %}
-          {% if page < total_pages %}
-            <a href="{{ url_for('ventas_historial', page=page+1) }}" class="back-link" style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
-          {% endif %}
-        </div>
+        </tbody>
+      </table>
+
+      <!-- Paginación -->
+      {% if total_pages > 1 %}
+      <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        {% if page > 1 %}
+        <a href="{{ url_for('ventas_historial', page=page-1) }}" class="back-link"
+          style="padding: 8px 12px; text-decoration: none;">« Anterior</a>
         {% endif %}
+        {% for p in range(1, total_pages+1) %}
+        {% if p == page %}
+        <span style="background: #4361ee; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold;">{{ p
+          }}</span>
+        {% else %}
+        <a href="{{ url_for('ventas_historial', page=p) }}" class="back-link"
+          style="padding: 8px 12px; text-decoration: none;">{{ p }}</a>
+        {% endif %}
+        {% endfor %}
+        {% if page < total_pages %} <a href="{{ url_for('ventas_historial', page=page+1) }}" class="back-link"
+          style="padding: 8px 12px; text-decoration: none;">Siguiente »</a>
+          {% endif %}
+      </div>
+      {% endif %}
       {% else %}
-        <p>No hay ventas registradas.</p>
+      <p>No hay ventas registradas.</p>
       {% endif %}
     </main>
   </div>
 </body>
+
 </html>
