@@ -5,4 +5,6 @@ Sistema de gestion para Comenda
 
 pip install -r requirements.txt
 
+python crear_usuario.py
+
 python app.py
