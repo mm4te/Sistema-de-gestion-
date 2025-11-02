@@ -10,7 +10,7 @@
   <div class="layout">
     <div class="sidebar">
       <h2><span>💼 Negocio</span></h2>
-      <a href="/"><span>📊 Inicio</span></a>
+      <a href="/" class="active"><span>📊 Inicio</span></a>
       <a href="/inventario"><span>📦 Inventario</span></a>
       <a href="/ventas"><span>🛒 Ventas</span></a>
       <a href="/clientes"><span>👥 Clientes</span></a>
@@ -22,6 +22,77 @@
 
     <div class="main-content">
       <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <h1>📊 Panel de Control</h1>
+
+        <!-- Resumen en tarjetas -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin: 20px 0;">
+          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #4361ee;">
+            <h3 style="margin: 0 0 10px; color: #4361ee;">📦 Productos</h3>
+            <p style="font-size: 1.8rem; font-weight: bold; margin: 0;">{{ total_productos }}</p>
+            <p style="margin: 5px 0 0; color: #6c757d;">en inventario</p>
+          </div>
+
+          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #2ecc71;">
+            <h3 style="margin: 0 0 10px; color: #2ecc71;">👥 Clientes</h3>
+            <p style="font-size: 1.8rem; font-weight: bold; margin: 0;">{{ total_clientes }}</p>
+            <p style="margin: 5px 0 0; color: #6c757d;">registrados</p>
+          </div>
+
+          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #e63946;">
+            <h3 style="margin: 0 0 10px; color: #e63946;">💰 Ventas Hoy</h3>
+            <p style="font-size: 1.4rem; font-weight: bold; margin: 0;">{{ cantidad_ventas_hoy }}</p>
+            <p style="margin: 5px 0; color: #6c757d;">Total: ${{ "%.2f"|format(total_ventas_hoy) }}</p>
+          </div>
+
+          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f72585;">
+            <h3 style="margin: 0 0 10px; color: #f72585;">📅 Ventas Mes</h3>
+            <p style="font-size: 1.4rem; font-weight: bold; margin: 0;">{{ cantidad_ventas_mes }}</p>
+            <p style="margin: 5px 0; color: #6c757d;">Total: ${{ "%.2f"|format(total_ventas_mes) }}</p>
+          </div>
+        </div>
+
+        <!-- Últimas ventas -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
+          <h2>🛒 Últimas Ventas</h2>
+          {% if ultimas_ventas %}
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Total</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in ultimas_ventas %}
+                <tr>
+                  <td data-label="ID">{{ v[0] }}</td>
+                  <td data-label="Fecha">{{ v[1] }}</td>
+                  <td data-label="Cliente">{{ v[2] }}</td>
+                  <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
+                  <td data-label="Acciones">
+                    <a href="/venta/{{ v[0] }}" style="color: #4361ee; text-decoration: none;">🔍 Ver detalle</a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p>No hay ventas registradas.</p>
+          {% endif %}
+        </div>
       </main>
     </div>
   </div>

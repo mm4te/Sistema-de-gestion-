@@ -92,7 +92,48 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html')
+    conn = sqlite3.connect('negocio.db')
+    c = conn.cursor()
+    
+    # Total de productos
+    total_productos = c.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
+    
+    # Total de clientes
+    total_clientes = c.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    
+    # Ventas hoy
+    hoy = datetime.now().strftime('%Y-%m-%d')
+    ventas_hoy = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)).fetchone()
+    cantidad_ventas_hoy = ventas_hoy[0]
+    total_ventas_hoy = ventas_hoy[1]
+    
+    # Ventas este mes
+    mes_actual = datetime.now().strftime('%Y-%m')
+    ventas_mes = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)).fetchone()
+    cantidad_ventas_mes = ventas_mes[0]
+    total_ventas_mes = ventas_mes[1]
+    
+    # Últimas 5 ventas
+    ultimas_ventas = c.execute("""
+        SELECT v.id, v.fecha, c.nombre, v.total
+        FROM ventas v
+        JOIN clientes c ON v.cliente_id = c.id
+        ORDER BY v.fecha DESC
+        LIMIT 5
+    """).fetchall()
+    
+    conn.close()
+    
+    return render_template(
+        'index.html',
+        total_productos=total_productos,
+        total_clientes=total_clientes,
+        cantidad_ventas_hoy=cantidad_ventas_hoy,
+        total_ventas_hoy=total_ventas_hoy,
+        cantidad_ventas_mes=cantidad_ventas_mes,
+        total_ventas_mes=total_ventas_mes,
+        ultimas_ventas=ultimas_ventas
+    )
 
 # === INVENTARIO ===
 @app.route('/inventario')
