@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inventario</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='paquete-emoji.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script>
     function confirmarEliminacion(nombre) {
@@ -60,7 +61,20 @@
               <input type="text" id="q" name="q" value="{{ search_query }}" placeholder="Código o descripción..."
                 style="width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
             </div>
+            <!-- Escanear -->
+            <div style="display: none; align-items: end; gap: 10px;" id="escanear-container">
+              <button type="button" id="btn-escanear"
+                style="padding: 12px; background: #4361ee; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                📷 Escanear código
+              </button>
+            </div>
 
+            <script>
+              // Mostrar botón solo en móviles
+              if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                document.getElementById('escanear-container').style.display = 'flex';
+              }
+            </script>
             <!-- Filtro de stock -->
             <div>
               <label for="stock" style="display: block; margin-bottom: 8px; font-weight: 600;">Filtrar por
