@@ -57,7 +57,7 @@ def init_db():
     # Insertar cliente genérico si no existe
     c.execute("SELECT COUNT(*) FROM clientes")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO clientes (nombre, telefono) VALUES ('Cliente General', '')")
+        c.execute("INSERT INTO clientes (nombre, telefono) VALUES ('Consumidor Final', '')")
     
     conn.commit()
     conn.close()
@@ -142,7 +142,7 @@ def inventario():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '').strip()
     filtro_stock = request.args.get('stock', '')
-    orden_precio = request.args.get('orden', '')
+    orden = request.args.get('orden', '')  # 'mayor', 'menor', 'nuevo', 'viejo'
     per_page = 20
 
     conn = sqlite3.connect('negocio.db')
@@ -158,13 +158,16 @@ def inventario():
     
     where_clause = "WHERE " + " AND ".join(condiciones) if condiciones else ""
     
-    order_clause = ""
-    if orden_precio == 'mayor':
+    # Ordenamiento
+    order_clause = "ORDER BY id DESC"  # Por defecto: más nuevo primero
+    if orden == 'mayor':
         order_clause = "ORDER BY precio DESC"
-    elif orden_precio == 'menor':
+    elif orden == 'menor':
         order_clause = "ORDER BY precio ASC"
-    else:
+    elif orden == 'nuevo':
         order_clause = "ORDER BY id DESC"
+    elif orden == 'viejo':
+        order_clause = "ORDER BY id ASC"
     
     count_query = f"SELECT COUNT(*) FROM productos {where_clause}"
     total = conn.execute(count_query, params).fetchone()[0]
@@ -184,7 +187,7 @@ def inventario():
         total=total,
         search_query=search_query,
         filtro_stock=filtro_stock,
-        orden_precio=orden_precio
+        orden=orden
     )
 @app.route('/nuevo_producto', methods=['GET', 'POST'])
 @login_required
