@@ -703,14 +703,14 @@ def reporte(formato):
         WHERE strftime('%Y-%m', v.fecha) = ?
         ORDER BY v.fecha
     """, conn, params=(mes_actual,))
-
+    hoy=datetime.now().strftime('%d-%m-%Y')
     if formato == 'excel':
-        output_path = 'reporte_ventas.xlsx'
+        output_path = f'reporte_ventas {hoy}.xlsx'
         df.to_excel(output_path, index=False)
         return send_file(output_path, as_attachment=True)
 
     elif formato == 'pdf':
-        output_path = 'reporte_ventas.csv'
+        output_path = f'reporte_ventas {hoy}.csv'
         df.to_csv(output_path, index=False)
         return send_file(output_path, as_attachment=True)
 
