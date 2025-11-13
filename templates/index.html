@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inicio</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
+  <button class="menu-toggle" id="menu-toggle">☰</button>
   <div class="layout">
     <div class="sidebar">
       <h2><span> Comenda Deco</span></h2>
@@ -15,7 +18,7 @@
       <a href="/ventas"><span>🛒 Ventas</span></a>
       <a href="/clientes"><span>👥 Clientes</span></a>
       <a href="/ventas_historial"><span>📈 Ventas Hist.</span></a>
-       
+
       <a href="/reporte/excel"><span>📥 Reporte</span></a>
       <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
@@ -23,38 +26,45 @@
     <div class="main-content">
       <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-messages">
-              {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <p class="{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         <h1>📊 Panel de Control</h1>
 
         <!-- Resumen en tarjetas -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin: 20px 0;">
-          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #4361ee;">
-            <h3 style="margin: 0 0 10px; color: #4361ee;"><a href="/inventario" style="text-decoration: none;"><span>📦 Productos</span></a></h3>
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin: 20px 0;">
+          <div
+            style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #4361ee;">
+            <h3 style="margin: 0 0 10px; color: #4361ee;"><a href="/inventario" style="text-decoration: none;"><span>📦
+                  Productos</span></a></h3>
             <p style="font-size: 1.8rem; font-weight: bold; margin: 0;">{{ total_productos }}</p>
             <p style="margin: 5px 0 0; color: #6c757d;">en inventario</p>
           </div>
 
-          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #2ecc71;">
-            <h3 style="margin: 0 0 10px; color: #2ecc71;"><a href="/clientes" style="text-decoration: none;"><span>👥 Clientes</span></a></h3>
+          <div
+            style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #2ecc71;">
+            <h3 style="margin: 0 0 10px; color: #2ecc71;"><a href="/clientes" style="text-decoration: none;"><span>👥
+                  Clientes</span></a></h3>
             <p style="font-size: 1.8rem; font-weight: bold; margin: 0;">{{ total_clientes }}</p>
             <p style="margin: 5px 0 0; color: #6c757d;">registrados</p>
           </div>
 
-          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #e63946;">
+          <div
+            style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #e63946;">
             <h3 style="margin: 0 0 10px; color: #e63946;">💰 Ventas Hoy</h3>
             <p style="font-size: 1.4rem; font-weight: bold; margin: 0;">{{ cantidad_ventas_hoy }}</p>
             <p style="margin: 5px 0; color: #6c757d;">Total: ${{ "%.2f"|format(total_ventas_hoy) }}</p>
           </div>
 
-          <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f72585;">
+          <div
+            style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f72585;">
             <h3 style="margin: 0 0 10px; color: #f72585;">📅 Ventas Mes</h3>
             <p style="font-size: 1.4rem; font-weight: bold; margin: 0;">{{ cantidad_ventas_mes }}</p>
             <p style="margin: 5px 0; color: #6c757d;">Total: ${{ "%.2f"|format(total_ventas_mes) }}</p>
@@ -62,9 +72,12 @@
         </div>
 
         <!-- Últimas ventas -->
-        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
+        <!-- Últimas ventas -->
+        <div
+          style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
           <h2>🛒 Últimas Ventas</h2>
           {% if ultimas_ventas %}
+          <div class="table-responsive">
             <table>
               <thead>
                 <tr>
@@ -89,12 +102,33 @@
                 {% endfor %}
               </tbody>
             </table>
+          </div>
           {% else %}
-            <p>No hay ventas registradas.</p>
+          <p>No hay ventas registradas.</p>
           {% endif %}
         </div>
       </main>
     </div>
   </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const menuToggle = document.getElementById('menu-toggle');
+      const sidebar = document.querySelector('.sidebar');
+
+      if (menuToggle && sidebar) {
+        menuToggle.addEventListener('click', function () {
+          sidebar.classList.toggle('open');
+        });
+
+        // Cerrar sidebar al hacer clic fuera
+        document.addEventListener('click', function (e) {
+          if (!sidebar.contains(e.target) && e.target !== menuToggle) {
+            sidebar.classList.remove('open');
+          }
+        });
+      }
+    });
+  </script>
 </body>
+
 </html>

@@ -6,12 +6,28 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
+from urllib.parse import urlencode
+import requests
+
+ML_CLIENT_ID = "5446055269673746"
+ML_CLIENT_SECRET = "PE6kHUIAedRyBkSpCE66PGESoXjfDPU0"
+ML_REDIRECT_URI = "https://arlo-jocund-stepfatherly.ngrok-free.dev/ml/callback"
+ML_SITE="ar"
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_negocio_2025_segura'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+#Funciones auxiliares
+def obtener_stock_ml(access_token, item_id):
+    """Obtiene el stock disponible de un item en Mercado Libre."""
+    url = f"https://api.mercadolibre.com/items/{item_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json().get('available_quantity', 0)
+    return None
 # Decorador de login requerido
 def login_required(f):
     @wraps(f)
@@ -135,6 +151,62 @@ def index():
         ultimas_ventas=ultimas_ventas
     )
 
+@app.route('/ml/login')
+def ml_login():
+    params = {
+        'client_id': ML_CLIENT_ID,
+        'response_type': 'code',
+        'redirect_uri': ML_REDIRECT_URI
+    }
+    auth_url = f"https://auth.mercadolibre.com.{ML_SITE}/authorization?{urlencode(params)}"
+    return redirect(auth_url)
+
+@app.route('/ml/callback')
+def ml_callback():
+    code = request.args.get('code')
+    if not code:
+        flash("Error en la autorización", "error")
+        return redirect(url_for('index'))
+    
+    # Obtener access_token
+    token_url = "https://api.mercadolibre.com/oauth/token"
+    payload = {
+        'grant_type': 'authorization_code',
+        'client_id': ML_CLIENT_ID,
+        'client_secret': ML_CLIENT_SECRET,
+        'code': code,
+        'redirect_uri': ML_REDIRECT_URI
+    }
+    response = requests.post(token_url, data=payload)
+    if response.status_code == 200:
+        token_data = response.json()
+        session['ml_access_token'] = token_data['access_token']
+        flash("Conectado a Mercado Libre", "success")
+    else:
+        flash("Error al obtener token", "error")
+    return redirect(url_for('inventario'))
+@app.route('/sincronizar_ml', methods=['POST'])
+@login_required
+def sincronizar_ml():
+    access_token = session.get('ml_access_token')
+    if not access_token:
+        flash("Primero debes conectar con Mercado Libre", "error")
+        return redirect(url_for('ml_login'))
+    
+    conn = sqlite3.connect('negocio.db')
+    productos = conn.execute("SELECT id, ml_item_id FROM productos WHERE ml_item_id IS NOT NULL").fetchall()
+    
+    actualizados = 0
+    for prod_id, ml_id in productos:
+        stock_ml = obtener_stock_ml(access_token, ml_id)
+        if stock_ml is not None:
+            conn.execute("UPDATE productos SET stock = ? WHERE id = ?", (stock_ml, prod_id))
+            actualizados += 1
+    
+    conn.commit()
+    conn.close()
+    flash(f"Stock sincronizado ({actualizados} productos actualizados)", "success")
+    return redirect(url_for('inventario'))
 # === INVENTARIO ===
 @app.route('/inventario')
 @login_required
