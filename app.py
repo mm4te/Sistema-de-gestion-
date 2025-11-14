@@ -301,6 +301,60 @@ def nuevo_producto():
 
     return render_template('nuevo_producto.html')
 
+@app.route('/ml/publicar', methods=['POST'])
+@login_required
+def publicar_en_ml():
+    token = session.get('ml_access_token')
+    if not token:
+        flash("❌ Debes conectar tu cuenta de Mercado Libre primero", "error")
+        return redirect(url_for('index'))
+    
+    # Datos del formulario
+    producto_id = request.form.get('producto_id')
+    
+    # Obtener producto de tu base de datos
+    conn = sqlite3.connect('negocio.db')
+    p = conn.execute("SELECT codigo, descripcion, precio, stock FROM productos WHERE id = ?", (producto_id,)).fetchone()
+    conn.close()
+    
+    if not p:
+        flash("❌ Producto no encontrado", "error")
+        return redirect(url_for('inventario'))
+    
+    # Preparar datos para ML
+    url_imagen = url_for('static', filename=f'deposito/{p[0]}.jpg', _external=True)
+    
+    item_data = {
+        "title": p[1],
+        "category_id": "MLA1260",  # ← ¡Cambia esto por tu categoría real!
+        "price": float(p[2]),
+        "currency_id": "ARS",
+        "available_quantity": int(p[3]),
+        "buying_mode": "buy_it_now",
+        "listing_type_id": "gold_special",
+        "condition": "new",
+        "description": {"plain_text": p[1]},
+        "pictures": [{"source": url_imagen}]
+    }
+    
+    # Enviar a Mercado Libre
+    url = "https://api.mercadolibre.com/items"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=item_data, headers=headers)
+    
+    if response.status_code == 201:
+        item = response.json()
+        flash(f"✅ Publicado en ML! ID: {item['id']}", "success")
+    else:
+        error = response.json()
+        flash(f"❌ Error ML: {error.get('message', 'Error desconocido')}", "error")
+    
+    return redirect(url_for('inventario'))
+
 @app.route('/editar_producto/<int:producto_id>', methods=['GET', 'POST'])
 @login_required
 def editar_producto(producto_id):

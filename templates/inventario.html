@@ -152,6 +152,12 @@
                     style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: 1rem;">🗑️
                     Eliminar</button>
                 </form>
+                <form method="post" action="/ml/publicar" style="display: inline;">
+                    <input type="hidden" name="producto_id" value="{{ p[0] }}">
+                    <button type="submit"
+                      style="background: #f78221; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">📤
+                      Publicar en ML</button>
+                  </form>
               </td>
             </tr>
             {% endfor %}
