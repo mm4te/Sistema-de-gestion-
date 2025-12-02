@@ -8,12 +8,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from urllib.parse import urlencode
 import requests
+import dotenv
 
-ML_CLIENT_ID = "5446055269673746"
-ML_CLIENT_SECRET = "PE6kHUIAedRyBkSpCE66PGESoXjfDPU0"
-ML_REDIRECT_URI = "https://arlo-jocund-stepfatherly.ngrok-free.dev/ml/callback"
-ML_SITE="ar"
-
+dotenv.load_dotenv()
+# Configuración de Mercado Libre
+ML_CLIENT_ID = os.getenv('ML_CLIENT_ID')
+ML_CLIENT_SECRET = os.getenv('ML_CLIENT_SECRET')
+ML_REDIRECT_URI = os.getenv('ML_REDIRECT_URI')
+ML_SITE = os.getenv('ML_SITE')
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_negocio_2025_segura'
 app.config['UPLOAD_FOLDER'] = 'uploads'
