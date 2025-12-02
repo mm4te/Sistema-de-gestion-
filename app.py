@@ -166,11 +166,23 @@ def ml_login():
 @app.route('/ml/callback')
 def ml_callback():
     code = request.args.get('code')
+    error = request.args.get('error')
+
+    # Evitar doble ejecución del callback
+    if 'used_code' in session and session['used_code'] == code:
+        return redirect(url_for('index'))
+
+    if error:
+        flash(f"Error de ML: {error}", "error")
+        return redirect(url_for('index'))
+
     if not code:
         flash("Error en la autorización", "error")
         return redirect(url_for('index'))
-    
-    # Obtener access_token
+
+    # Marcar como usado
+    session['used_code'] = code
+
     token_url = "https://api.mercadolibre.com/oauth/token"
     payload = {
         'grant_type': 'authorization_code',
@@ -179,14 +191,18 @@ def ml_callback():
         'code': code,
         'redirect_uri': ML_REDIRECT_URI
     }
+
     response = requests.post(token_url, data=payload)
+
     if response.status_code == 200:
         token_data = response.json()
         session['ml_access_token'] = token_data['access_token']
         flash("Conectado a Mercado Libre", "success")
+        flash(f"token: {token_data['access_token']}")
     else:
         flash("Error al obtener token", "error")
-    return redirect(url_for('inventario'))
+
+    return redirect(url_for('index'))
 @app.route('/sincronizar_ml', methods=['POST'])
 @login_required
 def sincronizar_ml():
@@ -308,52 +324,76 @@ def nuevo_producto():
 def publicar_en_ml():
     token = session.get('ml_access_token')
     if not token:
-        flash("❌ Debes conectar tu cuenta de Mercado Libre primero", "error")
-        return redirect(url_for('index'))
+        flash("❌ Conecta tu cuenta de Mercado Libre primero", "error")
+        return redirect(url_for('inventario'))
     
-    # Datos del formulario
     producto_id = request.form.get('producto_id')
-    
-    # Obtener producto de tu base de datos
     conn = sqlite3.connect('negocio.db')
     p = conn.execute("SELECT codigo, descripcion, precio, stock FROM productos WHERE id = ?", (producto_id,)).fetchone()
     conn.close()
     
-    if not p:
-        flash("❌ Producto no encontrado", "error")
+    if not p or p[3] <= 0:
+        flash("❌ Producto no válido o sin stock", "error")
         return redirect(url_for('inventario'))
-    
-    # Preparar datos para ML
-    url_imagen = url_for('static', filename=f'deposito/{p[0]}.jpg', _external=True)
+        
+    # Asegúrate de que la imagen esté en HTTPS y accesible
+    imagen_url = url_for('static', filename=f'deposito/{p[0]}.jpg', _external=True)
     
     item_data = {
         "title": p[1],
-        "category_id": "MLA1260",  # ← ¡Cambia esto por tu categoría real!
-        "price": float(p[2]),
-        "currency_id": "ARS",
-        "available_quantity": int(p[3]),
-        "buying_mode": "buy_it_now",
-        "listing_type_id": "gold_special",
-        "condition": "new",
-        "description": {"plain_text": p[1]},
-        "pictures": [{"source": url_imagen}]
-    }
-    
-    # Enviar a Mercado Libre
-    url = "https://api.mercadolibre.com/items"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    
-    response = requests.post(url, json=item_data, headers=headers)
+        "category_id":"MLA3530",
+        "price": p[2],
+        "currency_id":"ARS",
+        "available_quantity": p[3],
+        "buying_mode":"buy_it_now",
+        "condition":"new",
+        "listing_type_id":"gold_special",
+        "sale_terms":[
+            {
+                "id":"WARRANTY_TYPE",
+                "value_name":"Garantía del vendedor"
+            },
+            {
+                "id":"WARRANTY_TIME",
+                "value_name":"90 días"
+            }
+        ],
+        "pictures":[
+            {
+                "source":imagen_url
+            }
+        ],
+        "attributes":[
+            {
+                "id":"BRAND",
+                "value_name":"Comenda"
+            },
+            {
+                "id":"MODEL",
+                "value_name":"2421"
+            }
+        ]
+        }
+
+    response = requests.post(
+        "https://api.mercadolibre.com/items",
+        json=item_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
     
     if response.status_code == 201:
-        item = response.json()
-        flash(f"✅ Publicado en ML! ID: {item['id']}", "success")
+        flash(f"✅ Publicado! ID: {response.json()['id']}", "success")
     else:
-        error = response.json()
-        flash(f"❌ Error ML: {error.get('message', 'Error desconocido')}", "error")
+        try:
+            error = response.json()
+            cause = error.get('cause', [])
+            if cause:
+                details = "; ".join([c.get('description', '') for c in cause])
+                flash(f"❌ Error: {details}", "error")
+            else:
+                flash(f"❌ Error: {error.get('message', 'Desconocido')}", "error")
+        except:
+            flash(f"❌ Error HTTP {response.status_code}", "error")
     
     return redirect(url_for('inventario'))
 
