@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from urllib.parse import urlencode
-import requests
+
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_negocio_2025_segura'
@@ -24,7 +24,79 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+import csv
+import sqlite3
+from flask import request, redirect, url_for, flash
 
+@app.route('/cargar_tiendanube', methods=['POST'])
+@login_required
+def cargar_tiendanube():
+    if 'file' not in request.files:
+        flash("❌ No se seleccionó ningún archivo", "error")
+        return redirect(url_for('inventario'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash("❌ Nombre de archivo vacío", "error")
+        return redirect(url_for('inventario'))
+    
+    if not file.filename.endswith('.csv'):
+        flash("❌ Solo se permiten archivos .csv", "error")
+        return redirect(url_for('inventario'))
+    
+    try:
+        # Leer el CSV
+        stream = file.stream.read().decode("utf-8-sig").splitlines()
+        reader = csv.reader(stream, delimiter=';')
+        next(reader)  # Saltar encabezado
+        
+        conn = sqlite3.connect('negocio.db')
+        cursor = conn.cursor()
+        productos_actualizados = 0
+        
+        for row in reader:
+            if len(row) < 17:
+                continue  # Saltar filas incompletas
+            
+            nombre = row[1].strip()
+            precio_str = row[9].replace('.', '').replace(',', '.') if row[9] else '0'
+            stock_str = row[15] if row[15] else '0'
+            sku = row[16].strip() if row[16] else None
+            
+            # Saltar si no hay SKU ni nombre
+            if not sku and not nombre:
+                continue
+            
+            # Convertir precios y stock
+            try:
+                precio = float(precio_str)
+                stock = int(float(stock_str))  # Maneja "0.00"
+            except ValueError:
+                continue
+            
+            # Usar SKU como código; si no, usar nombre acortado
+            codigo = sku if sku else nombre[:20].replace(' ', '_')
+            
+            # Insertar o actualizar
+            cursor.execute("""
+                INSERT INTO productos (codigo, descripcion, precio, stock)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(codigo) DO UPDATE SET
+                    descripcion = excluded.descripcion,
+                    precio = excluded.precio,
+                    stock = excluded.stock
+            """, (codigo, nombre, precio, stock))
+            
+            productos_actualizados += 1
+        
+        conn.commit()
+        conn.close()
+        flash(f"✅ {productos_actualizados} productos cargados/actualizados desde Tienda Nube", "success")
+        
+    except Exception as e:
+        flash(f"❌ Error al procesar el archivo: {str(e)}", "error")
+    
+    return redirect(url_for('inventario'))
 # Inicializar base de datos
 def init_db():
     conn = sqlite3.connect('negocio.db')
