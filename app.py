@@ -45,10 +45,19 @@ def cargar_tiendanube():
         return redirect(url_for('inventario'))
     
     try:
-        # Leer el CSV
-        stream = file.stream.read().decode("utf-8-sig").splitlines()
+        # Leer y decodificar con múltiples codificaciones
+        raw_data = file.stream.read()
+        try:
+            decoded_data = raw_data.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                decoded_data = raw_data.decode('latin-1')
+            except UnicodeDecodeError:
+                decoded_data = raw_data.decode('cp1252')
+        
+        stream = decoded_data.splitlines()
         reader = csv.reader(stream, delimiter=';')
-        next(reader)  # Saltar encabezado
+        header = next(reader)  # Saltar encabezado
         
         conn = sqlite3.connect('negocio.db')
         cursor = conn.cursor()
@@ -56,28 +65,24 @@ def cargar_tiendanube():
         
         for row in reader:
             if len(row) < 17:
-                continue  # Saltar filas incompletas
+                continue
             
             nombre = row[1].strip()
             precio_str = row[9].replace('.', '').replace(',', '.') if row[9] else '0'
             stock_str = row[15] if row[15] else '0'
             sku = row[16].strip() if row[16] else None
             
-            # Saltar si no hay SKU ni nombre
             if not sku and not nombre:
                 continue
             
-            # Convertir precios y stock
             try:
                 precio = float(precio_str)
-                stock = int(float(stock_str))  # Maneja "0.00"
+                stock = int(float(stock_str))
             except ValueError:
                 continue
             
-            # Usar SKU como código; si no, usar nombre acortado
             codigo = sku if sku else nombre[:20].replace(' ', '_')
             
-            # Insertar o actualizar
             cursor.execute("""
                 INSERT INTO productos (codigo, descripcion, precio, stock)
                 VALUES (?, ?, ?, ?)
