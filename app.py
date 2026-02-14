@@ -1,22 +1,19 @@
 import os
 import sqlite3
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session
-import pandas as pd
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 from functools import wraps
-from urllib.parse import urlencode
-
+import pandas as pd
+import csv
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_negocio_2025_segura'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-#Funciones auxiliares
-
-# Decorador de login requerido
+# === DECORADOR DE LOGIN ===
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -24,85 +21,52 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
-import csv
-import sqlite3
-from flask import request, redirect, url_for, flash
 
-@app.route('/cargar_tiendanube', methods=['POST'])
-@login_required
-def cargar_tiendanube():
-    if 'file' not in request.files:
-        flash("❌ No se seleccionó ningún archivo", "error")
-        return redirect(url_for('inventario'))
-    
-    file = request.files['file']
-    if file.filename == '':
-        flash("❌ Nombre de archivo vacío", "error")
-        return redirect(url_for('inventario'))
-    
-    if not file.filename.endswith('.csv'):
-        flash("❌ Solo se permiten archivos .csv", "error")
-        return redirect(url_for('inventario'))
-    
-    try:
-        # Leer y decodificar con múltiples codificaciones
-        raw_data = file.stream.read()
-        try:
-            decoded_data = raw_data.decode('utf-8')
-        except UnicodeDecodeError:
-            try:
-                decoded_data = raw_data.decode('latin-1')
-            except UnicodeDecodeError:
-                decoded_data = raw_data.decode('cp1252')
-        
-        stream = decoded_data.splitlines()
-        reader = csv.reader(stream, delimiter=';')
-        header = next(reader)  # Saltar encabezado
-        
-        conn = sqlite3.connect('negocio.db')
-        cursor = conn.cursor()
-        productos_actualizados = 0
-        
-        for row in reader:
-            if len(row) < 17:
-                continue
-            
-            nombre = row[1].strip()
-            precio_str = row[9].replace(',', '') if row[9] else '0'
-            stock_str = row[15] if row[15] else '0'
-            sku = row[16].strip() if row[16] else None
-            
-            if not sku and not nombre:
-                continue
-            
-            try:
-                precio = float(precio_str)
-                stock = int(float(stock_str))
-            except ValueError:
-                continue
-            
-            codigo = sku if sku else nombre[:20].replace(' ', '_')
-            
-            cursor.execute("""
-                INSERT INTO productos (codigo, descripcion, precio, stock)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(codigo) DO UPDATE SET
-                    descripcion = excluded.descripcion,
-                    precio = excluded.precio,
-                    stock = excluded.stock
-            """, (codigo, nombre, precio, stock))
-            
-            productos_actualizados += 1
-        
-        conn.commit()
-        conn.close()
-        flash(f"✅ {productos_actualizados} productos cargados/actualizados desde Tienda Nube", "success")
-        
-    except Exception as e:
-        flash(f"❌ Error al procesar el archivo: {str(e)}", "error")
-    
-    return redirect(url_for('inventario'))
-# Inicializar base de datos
+# === INICIALIZAR BASE DE DATOS ===
+def init_db():
+    conn = sqlite3.connect('negocio.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT UNIQUE NOT NULL,
+        descripcion TEXT NOT NULL,
+        precio REAL NOT NULL,
+        stock INTEGER NOT NULL
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        cuit TEXT,
+        telefono TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS ventas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT NOT NULL,
+        cliente_id INTEGER NOT NULL,
+        total REAL NOT NULL,
+        metodo_pago TEXT,
+        cuotas INTEGER
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS detalle_venta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER NOT NULL,
+        producto_id INTEGER NOT NULL,
+        cantidad INTEGER NOT NULL,
+        precio_unitario REAL NOT NULL
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL
+    )''')
+    # Insertar cliente por defecto si no existe
+    c.execute("SELECT COUNT(*) FROM clientes")
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO clientes (nombre, telefono) VALUES ('Consumidor Final', '')")
+    conn.commit()
+    conn.close()
+
+# === FILTRO JINJA ===
 @app.template_filter('pesos')
 def formato_pesos(valor):
     try:
@@ -110,70 +74,26 @@ def formato_pesos(valor):
     except:
         return valor
 
-def init_db():
-    conn = sqlite3.connect('negocio.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS productos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    codigo TEXT UNIQUE NOT NULL,
-                    descripcion TEXT NOT NULL,
-                    precio REAL NOT NULL,
-                    stock INTEGER NOT NULL)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS clientes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL,
-                    cuit TEXT NOT NULL,
-                    telefono TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS ventas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fecha TEXT NOT NULL,
-                cliente_id INTEGER NOT NULL,
-                total REAL NOT NULL,
-                metodo_pago TEXT,
-                cuotas INTEGER
-            )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS detalle_venta (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    venta_id INTEGER NOT NULL,
-                    producto_id INTEGER NOT NULL,
-                    cantidad INTEGER NOT NULL,
-                    precio_unitario REAL NOT NULL)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL)''')
-    
-    # Insertar cliente genérico si no existe
-    c.execute("SELECT COUNT(*) FROM clientes")
-    if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO clientes (nombre, telefono) VALUES ('Consumidor Final', '')")
-    
-    conn.commit()
-    conn.close()
-
-# === LOGIN / LOGOUT ===
+# === RUTAS DE AUTENTICACIÓN ===
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
         conn = sqlite3.connect('negocio.db')
         user = conn.execute("SELECT id, password_hash FROM usuarios WHERE username = ?", (username,)).fetchone()
         conn.close()
-        
         if user and check_password_hash(user[1], password):
             session['user_id'] = user[0]
             flash("✅ Sesión iniciada", "success")
             return redirect(url_for('index'))
         else:
             flash("❌ Usuario o contraseña incorrectos", "error")
-    
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.clear()  # Limpia toda la sesión (carrito, cliente, login)
+    session.clear()
     flash("👋 Sesión cerrada", "success")
     return redirect(url_for('login'))
 
@@ -183,46 +103,30 @@ def logout():
 def index():
     conn = sqlite3.connect('negocio.db')
     c = conn.cursor()
-    
-    # Total de productos
     total_productos = c.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
-    
-    # Total de clientes
     total_clientes = c.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-    
-    # Ventas hoy
     hoy = datetime.now().strftime('%Y-%m-%d')
     ventas_hoy = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)).fetchone()
-    cantidad_ventas_hoy = ventas_hoy[0]
-    total_ventas_hoy = ventas_hoy[1]
-    
-    # Ventas este mes
     mes_actual = datetime.now().strftime('%Y-%m')
     ventas_mes = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)).fetchone()
-    cantidad_ventas_mes = ventas_mes[0]
-    total_ventas_mes = ventas_mes[1]
-    
-    # Últimas 5 ventas
     ultimas_ventas = c.execute("""
         SELECT v.id, v.fecha, c.nombre, v.total
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
-        ORDER BY v.fecha DESC
-        LIMIT 5
+        ORDER BY v.fecha DESC LIMIT 5
     """).fetchall()
-    
     conn.close()
-    
     return render_template(
         'index.html',
         total_productos=total_productos,
         total_clientes=total_clientes,
-        cantidad_ventas_hoy=cantidad_ventas_hoy,
-        total_ventas_hoy=total_ventas_hoy,
-        cantidad_ventas_mes=cantidad_ventas_mes,
-        total_ventas_mes=total_ventas_mes,
+        cantidad_ventas_hoy=ventas_hoy[0],
+        total_ventas_hoy=ventas_hoy[1],
+        cantidad_ventas_mes=ventas_mes[0],
+        total_ventas_mes=ventas_mes[1],
         ultimas_ventas=ultimas_ventas
     )
+
 # === INVENTARIO ===
 @app.route('/inventario')
 @login_required
@@ -230,53 +134,37 @@ def inventario():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '').strip()
     filtro_stock = request.args.get('stock', '')
-    orden = request.args.get('orden', '')  # 'mayor', 'menor', 'nuevo', 'viejo'
+    orden = request.args.get('orden', '')
     per_page = 20
 
     conn = sqlite3.connect('negocio.db')
     condiciones = []
     params = []
-    
+
     if search_query:
         condiciones.append("(codigo LIKE ? OR descripcion LIKE ?)")
         params.extend([f'%{search_query}%', f'%{search_query}%'])
-    
     if filtro_stock == 'sin_stock':
         condiciones.append("stock = 0")
-    
+
     where_clause = "WHERE " + " AND ".join(condiciones) if condiciones else ""
     
-    # Ordenamiento
-    order_clause = "ORDER BY id DESC"  # Por defecto: más nuevo primero
-    if orden == 'mayor':
-        order_clause = "ORDER BY precio DESC"
-    elif orden == 'menor':
-        order_clause = "ORDER BY precio ASC"
-    elif orden == 'nuevo':
-        order_clause = "ORDER BY id DESC"
-    elif orden == 'viejo':
-        order_clause = "ORDER BY id ASC"
-    
-    count_query = f"SELECT COUNT(*) FROM productos {where_clause}"
-    total = conn.execute(count_query, params).fetchone()[0]
-    
-    offset = (page - 1) * per_page
-    select_query = f"SELECT * FROM productos {where_clause} {order_clause} LIMIT ? OFFSET ?"
-    productos = conn.execute(select_query, (*params, per_page, offset)).fetchall()
-    
-    conn.close()
-    total_pages = (total + per_page - 1) // per_page
+    order_clause = "ORDER BY id DESC"
+    if orden == 'mayor': order_clause = "ORDER BY precio DESC"
+    elif orden == 'menor': order_clause = "ORDER BY precio ASC"
+    elif orden == 'nuevo': order_clause = "ORDER BY id DESC"
+    elif orden == 'viejo': order_clause = "ORDER BY id ASC"
 
-    return render_template(
-        'inventario.html',
-        productos=productos,
-        page=page,
-        total_pages=total_pages,
-        total=total,
-        search_query=search_query,
-        filtro_stock=filtro_stock,
-        orden=orden
-    )
+    total = conn.execute(f"SELECT COUNT(*) FROM productos {where_clause}", params).fetchone()[0]
+    offset = (page - 1) * per_page
+    productos = conn.execute(f"SELECT * FROM productos {where_clause} {order_clause} LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
+    conn.close()
+
+    total_pages = (total + per_page - 1) // per_page
+    return render_template('inventario.html', productos=productos, page=page, total_pages=total_pages, total=total,
+                           search_query=search_query, filtro_stock=filtro_stock, orden=orden)
+
+# === PRODUCTOS: CRUD ===
 @app.route('/nuevo_producto', methods=['GET', 'POST'])
 @login_required
 def nuevo_producto():
@@ -285,26 +173,17 @@ def nuevo_producto():
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
-
-        if not codigo or not descripcion or not precio or not stock:
+        if not all([codigo, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
             return render_template('nuevo_producto.html')
-
         try:
             precio = float(precio)
             stock = int(stock)
             if precio <= 0 or stock < 0:
                 raise ValueError
-        except ValueError:
-            flash("❌ Precio debe ser un número positivo y stock un entero no negativo", "error")
-            return render_template('nuevo_producto.html')
-
-        try:
             conn = sqlite3.connect('negocio.db')
-            conn.execute(
-                "INSERT INTO productos (codigo, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
-                (codigo, descripcion, precio, stock)
-            )
+            conn.execute("INSERT INTO productos (codigo, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
+                         (codigo, descripcion, precio, stock))
             conn.commit()
             flash("✅ Producto creado correctamente", "success")
             return redirect(url_for('inventario'))
@@ -314,20 +193,22 @@ def nuevo_producto():
             flash(f"❌ Error al guardar: {str(e)}", "error")
         finally:
             conn.close()
-
     return render_template('nuevo_producto.html')
 
 @app.route('/editar_producto/<int:producto_id>', methods=['GET', 'POST'])
 @login_required
 def editar_producto(producto_id):
     conn = sqlite3.connect('negocio.db')
+    producto = conn.execute("SELECT * FROM productos WHERE id = ?", (producto_id,)).fetchone()
+    if not producto:
+        flash("Producto no encontrado", "error")
+        return redirect(url_for('inventario'))
     if request.method == 'POST':
         codigo = request.form.get('codigo', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
-
-        if not codigo or not descripcion or not precio or not stock:
+        if not all([codigo, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
         else:
             try:
@@ -335,25 +216,16 @@ def editar_producto(producto_id):
                 stock = int(stock)
                 if precio <= 0 or stock < 0:
                     raise ValueError
-                conn.execute(
-                    "UPDATE productos SET codigo = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
-                    (codigo, descripcion, precio, stock, producto_id)
-                )
+                conn.execute("UPDATE productos SET codigo = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
+                             (codigo, descripcion, precio, stock, producto_id))
                 conn.commit()
                 flash("✅ Producto actualizado correctamente", "success")
                 return redirect(url_for('inventario'))
-            except ValueError:
-                flash("❌ Precio debe ser positivo y stock un entero no negativo", "error")
             except sqlite3.IntegrityError:
                 flash("❌ El código ya existe. Usa uno único.", "error")
             except Exception as e:
                 flash(f"❌ Error: {str(e)}", "error")
-    
-    producto = conn.execute("SELECT * FROM productos WHERE id = ?", (producto_id,)).fetchone()
     conn.close()
-    if not producto:
-        flash("Producto no encontrado", "error")
-        return redirect(url_for('inventario'))
     return render_template('editar_producto.html', producto=producto)
 
 @app.route('/eliminar_producto/<int:producto_id>', methods=['POST'])
@@ -370,43 +242,62 @@ def eliminar_producto(producto_id):
     conn.close()
     return redirect(url_for('inventario'))
 
-@app.route('/cargar_excel', methods=['GET', 'POST'])
+# === CARGA MASIVA ===
+@app.route('/cargar_tiendanube', methods=['POST'])
 @login_required
-def cargar_excel():
-    if request.method == 'POST':
-        file = request.files.get('archivo')
-        if not file or not file.filename.endswith('.xlsx'):
-            flash("Por favor sube un archivo .xlsx", "error")
-            return redirect(request.url)
-        
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        try:
-            df = pd.read_excel(filepath)
-            df.columns = df.columns.str.lower().str.strip()
-            required = {'codigo', 'descripcion', 'precio', 'stock'}
-            if not required.issubset(df.columns):
-                missing = required - set(df.columns)
-                flash(f"Faltan columnas: {missing}", "error")
-                return redirect(request.url)
-
-            conn = sqlite3.connect('negocio.db')
-            for _, row in df.iterrows():
-                conn.execute(
-                    "INSERT OR REPLACE INTO productos (codigo, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
-                    (str(row['codigo']), str(row['descripcion']), float(row['precio']), int(row['stock']))
-                )
-            conn.commit()
-            flash("✅ Productos cargados correctamente", "success")
-        except Exception as e:
-            flash("❌ Error al procesar el archivo. Asegúrate de que las columnas sean: codigo, descripcion, precio, stock (en minúsculas).", "error")
-        finally:
-            if os.path.exists(filepath):
-                os.remove(filepath)
+def cargar_tiendanube():
+    file = request.files.get('file')
+    if not file or not file.filename.endswith('.csv'):
+        flash("❌ Archivo inválido. Debe ser .csv", "error")
         return redirect(url_for('inventario'))
-    return render_template('cargar_excel.html')
+    
+    try:
+        raw_data = file.stream.read()
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                decoded = raw_data.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise ValueError("Codificación no soportada")
+        
+        reader = csv.reader(decoded.splitlines(), delimiter=';')
+        next(reader)  # encabezado
+        
+        conn = sqlite3.connect('negocio.db')
+        cursor = conn.cursor()
+        count = 0
+        for row in reader:
+            if len(row) < 17:
+                continue
+            nombre = row[1].strip()
+            precio_str = row[9].replace('.', '').replace(',', '.') if row[9] else '0'
+            stock_str = row[15] if row[15] else '0'
+            sku = row[16].strip() or None
+            if not sku and not nombre:
+                continue
+            try:
+                precio = float(precio_str)
+                stock = int(float(stock_str))
+            except ValueError:
+                continue
+            codigo = sku or nombre[:20].replace(' ', '_')
+            cursor.execute("""
+                INSERT INTO productos (codigo, descripcion, precio, stock)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(codigo) DO UPDATE SET
+                    descripcion = excluded.descripcion,
+                    precio = excluded.precio,
+                    stock = excluded.stock
+            """, (codigo, nombre, precio, stock))
+            count += 1
+        conn.commit()
+        conn.close()
+        flash(f"✅ {count} productos cargados/actualizados desde Tienda Nube", "success")
+    except Exception as e:
+        flash(f"❌ Error al procesar el archivo: {str(e)}", "error")
+    return redirect(url_for('inventario'))
 
 # === CLIENTES ===
 @app.route('/clientes')
@@ -417,12 +308,10 @@ def clientes():
     conn = sqlite3.connect('negocio.db')
     total = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
     offset = (page - 1) * per_page
-    clientes_lista = conn.execute(
-        "SELECT * FROM clientes LIMIT ? OFFSET ?", (per_page, offset)
-    ).fetchall()
+    lista = conn.execute("SELECT * FROM clientes LIMIT ? OFFSET ?", (per_page, offset)).fetchall()
     conn.close()
     total_pages = (total + per_page - 1) // per_page
-    return render_template('clientes.html', clientes=clientes_lista, page=page, total_pages=total_pages, total=total)
+    return render_template('clientes.html', clientes=lista, page=page, total_pages=total_pages, total=total)
 
 @app.route('/nuevo_cliente', methods=['GET', 'POST'])
 @login_required
@@ -436,7 +325,12 @@ def nuevo_cliente():
         else:
             try:
                 conn = sqlite3.connect('negocio.db')
-                conn.execute("INSERT INTO clientes (nombre, cuit,telefono) VALUES (?, ?, ?)", (nombre, cuit,telefono))
+                if cuit:
+                    existente = conn.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,)).fetchone()
+                    if existente:
+                        flash("❌ El CUIT ya está registrado para otro cliente", "error")
+                        return render_template('nuevo_cliente.html')
+                conn.execute("INSERT INTO clientes (nombre, cuit, telefono) VALUES (?, ?, ?)", (nombre, cuit, telefono))
                 conn.commit()
                 flash("✅ Cliente creado correctamente", "success")
                 return redirect(url_for('clientes'))
@@ -446,41 +340,7 @@ def nuevo_cliente():
                 conn.close()
     return render_template('nuevo_cliente.html')
 
-@app.route('/cliente/<int:cliente_id>')
-@login_required
-def historial_cliente(cliente_id):
-    conn = sqlite3.connect('negocio.db')
-    cliente = conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
-    if not cliente:
-        flash("Cliente no encontrado", "error")
-        return redirect(url_for('clientes'))
-    
-    ventas = conn.execute("""
-        SELECT v.id, v.fecha, v.total
-        FROM ventas v
-        WHERE v.cliente_id = ?
-        ORDER BY v.fecha DESC
-    """, (cliente_id,)).fetchall()
-    
-    ventas_detalle = []
-    for venta in ventas:
-        detalle = conn.execute("""
-            SELECT p.descripcion, dv.cantidad, dv.precio_unitario
-            FROM detalle_venta dv
-            JOIN productos p ON dv.producto_id = p.id
-            WHERE dv.venta_id = ?
-        """, (venta[0],)).fetchall()
-        ventas_detalle.append({
-            'id': venta[0],
-            'fecha': venta[1],
-            'total': venta[2],
-            'detalle': detalle
-        })
-    
-    conn.close()
-    return render_template('historial_cliente.html', cliente=cliente, ventas=ventas_detalle)
-
-# === CARRITO Y VENTAS ===
+# === VENTAS Y CARRITO ===
 @app.route('/guardar_cliente', methods=['POST'])
 @login_required
 def guardar_cliente():
@@ -492,136 +352,91 @@ def guardar_cliente():
 @app.route('/ventas')
 @login_required
 def ventas():
-    cliente_id_sesion = session.get('cliente_id_seleccionado')
-    
+    cliente_id = session.get('cliente_id_seleccionado')
     conn = sqlite3.connect('negocio.db')
     clientes = conn.execute("SELECT id, nombre FROM clientes").fetchall()
     productos = conn.execute("SELECT id, codigo, descripcion, precio, stock FROM productos WHERE stock > 0").fetchall()
     conn.close()
-    
     carrito = session.get('carrito', [])
-    
-    total = sum(item['precio'] * item['cantidad'] for item in session.get('carrito', []))
-    
-    return render_template(
-        'ventas.html', 
-        clientes=clientes, 
-        productos=productos, 
-        carrito=carrito, 
-        total=total,
-        cliente_id_seleccionado=cliente_id_sesion
-    )
+    total = sum(item['precio'] * item['cantidad'] for item in carrito)
+    return render_template('ventas.html', clientes=clientes, productos=productos, carrito=carrito, total=total,
+                           cliente_id_seleccionado=cliente_id)
 
 @app.route('/agregar_al_carrito', methods=['POST'])
 @login_required
 def agregar_al_carrito():
     producto_id = request.form.get('producto_id')
     cantidad = int(request.form.get('cantidad', 1))
-    
     if not producto_id or cantidad <= 0:
         flash("❌ Cantidad o producto inválido", "error")
         return redirect(url_for('ventas'))
-    
     conn = sqlite3.connect('negocio.db')
-    p = conn.execute(
-        "SELECT id, codigo, descripcion, precio, stock FROM productos WHERE id = ?", 
-        (producto_id,)
-    ).fetchone()
+    p = conn.execute("SELECT id, codigo, descripcion, precio, stock FROM productos WHERE id = ?", (producto_id,)).fetchone()
     conn.close()
-    
     if not p:
         flash("❌ Producto no encontrado", "error")
         return redirect(url_for('ventas'))
-    
-    if cantidad > p[4]:  # p[4] = stock
+    if cantidad > p[4]:
         flash(f"❌ Stock insuficiente. Disponible: {p[4]}", "error")
         return redirect(url_for('ventas'))
-    
-    # Inicializar carrito
-    if 'carrito' not in session:
-        session['carrito'] = []
-    
-    carrito = session['carrito']
-    producto_existente = None
-    
+    carrito = session.get('carrito', [])
     for item in carrito:
         if item['id'] == p[0]:
-            producto_existente = item
-            break
-    
-    if producto_existente:
-        nueva_cantidad = producto_existente['cantidad'] + cantidad
-        if nueva_cantidad > p[4]:
-            flash(f"❌ No hay suficiente stock para {p[2]}", "error")
-        else:
-            producto_existente['cantidad'] = nueva_cantidad
-    else:
-        nuevo_item = {
-            'id': p[0],
-            'codigo': p[1],
-            'descripcion': p[2],
-            'precio_original': float(p[3]),
-            'precio': float(p[3]),  # ← Este será el campo editable
-            'cantidad': cantidad
-        }
-        carrito.append(nuevo_item)
-    
+            nueva_cant = item['cantidad'] + cantidad
+            if nueva_cant <= p[4]:
+                item['cantidad'] = nueva_cant
+            else:
+                flash(f"❌ No hay suficiente stock para {p[2]}", "error")
+            session['carrito'] = carrito
+            flash(f"✅ {p[2]} cantidad actualizada", "success")
+            return redirect(url_for('ventas'))
+    carrito.append({
+        'id': p[0],
+        'codigo': p[1],
+        'descripcion': p[2],
+        'precio_original': float(p[3]),
+        'precio': float(p[3]),
+        'cantidad': cantidad
+    })
     session['carrito'] = carrito
     flash(f"✅ {p[2]} agregado al carrito", "success")
     return redirect(url_for('ventas'))
+
 @app.route('/actualizar_precio_carrito', methods=['POST'])
 @login_required
 def actualizar_precio_carrito():
     index = int(request.form.get('index'))
     nuevo_precio = float(request.form.get('nuevo_precio'))
-    
-    if 'carrito' not in session or index >= len(session['carrito']):
+    carrito = session.get('carrito', [])
+    if 0 <= index < len(carrito) and nuevo_precio > 0:
+        carrito[index]['precio'] = nuevo_precio
+        session['carrito'] = carrito
+        flash("✅ Precio actualizado", "success")
+    else:
         flash("❌ Error al actualizar el precio", "error")
-        return redirect(url_for('ventas'))
-    
-    if nuevo_precio <= 0:
-        flash("❌ El precio debe ser mayor a 0", "error")
-        return redirect(url_for('ventas'))
-    
-    carrito = session['carrito']
-    carrito[index]['precio'] = nuevo_precio
-    session['carrito'] = carrito
-    
-    flash("✅ Precio actualizado", "success")
     return redirect(url_for('ventas'))
+
 @app.route('/actualizar_carrito', methods=['POST'])
 @login_required
 def actualizar_carrito():
     index = int(request.form.get('index'))
     nueva_cantidad = int(request.form.get('cantidad'))
-    if 'carrito' not in session or index >= len(session['carrito']):
-        flash("❌ Error al actualizar el carrito", "error")
+    carrito = session.get('carrito', [])
+    if not (0 <= index < len(carrito)) or nueva_cantidad <= 0:
+        flash("❌ Datos inválidos", "error")
         return redirect(url_for('ventas'))
-    
-    if nueva_cantidad <= 0:
-        flash("❌ La cantidad debe ser mayor a 0", "error")
-        return redirect(url_for('ventas'))
-    
-    # Obtener el producto para verificar stock
-    item = session['carrito'][index]
+    item = carrito[index]
     conn = sqlite3.connect('negocio.db')
-    stock_actual = conn.execute(
-        "SELECT stock FROM productos WHERE id = ?", (item['id'],)
-    ).fetchone()
+    stock_actual = conn.execute("SELECT stock FROM productos WHERE id = ?", (item['id'],)).fetchone()
     conn.close()
-    
-    if not stock_actual:
-        flash("❌ Producto no encontrado", "error")
+    if not stock_actual or nueva_cantidad > stock_actual[0]:
+        flash(f"❌ Stock insuficiente. Disponible: {stock_actual[0] if stock_actual else 0}", "error")
         return redirect(url_for('ventas'))
-    
-    if nueva_cantidad > stock_actual[0]:
-        flash(f"❌ Stock insuficiente. Disponible: {stock_actual[0]}", "error")
-        return redirect(url_for('ventas'))
-    
-    # Actualizar cantidad en el carrito
-    session['carrito'][index]['cantidad'] = nueva_cantidad
+    item['cantidad'] = nueva_cantidad
+    session['carrito'] = carrito
     flash("✅ Cantidad actualizada", "success")
     return redirect(url_for('ventas'))
+
 @app.route('/eliminar_del_carrito/<int:index>')
 @login_required
 def eliminar_del_carrito(index):
@@ -636,124 +451,94 @@ def eliminar_del_carrito(index):
 def vaciar_carrito():
     session.pop('carrito', None)
     return redirect(url_for('ventas'))
+
 @app.route('/seleccionar_pago', methods=['GET', 'POST'])
 @login_required
 def seleccionar_pago():
     carrito = session.get('carrito', [])
     cliente_id = session.get('cliente_id_seleccionado')
-    
     if not carrito or not cliente_id:
         flash("❌ Carrito vacío o cliente no seleccionado", "error")
         return redirect(url_for('ventas'))
-    
     if request.method == 'POST':
         metodo = request.form.get('metodo_pago')
         cuotas = request.form.get('cuotas', type=int)
-        
         if metodo not in ['efectivo', 'transferencia', 'tarjeta']:
             flash("❌ Método de pago inválido", "error")
             return redirect(request.url)
-        
         if metodo == 'tarjeta' and cuotas not in [2, 3, 6]:
             flash("❌ Cuotas inválidas", "error")
             return redirect(request.url)
-        
-        # Guardar en sesión temporalmente
         session['metodo_pago'] = metodo
         session['cuotas_pago'] = cuotas if metodo == 'tarjeta' else None
-        
         return redirect(url_for('confirmar_venta'))
-    
-    total = sum(item['subtotal'] for item in carrito)
+    total = sum(item['precio'] * item['cantidad'] for item in carrito)
     return render_template('seleccionar_pago.html', total=total)
+
 @app.route('/confirmar_venta', methods=['POST'])
 @login_required
 def confirmar_venta():
-    # Obtener datos del FORMULARIO (no de la sesión)
     metodo_pago = request.form.get('metodo_pago')
     cuotas = request.form.get('cuotas', type=int)
-    
-    # Obtener carrito y cliente de la SESIÓN
     carrito = session.get('carrito', [])
     cliente_id = session.get('cliente_id_seleccionado')
-    
-    # Validar todo
     if not carrito or not cliente_id or not metodo_pago:
         flash("❌ Datos incompletos", "error")
         return redirect(url_for('ventas'))
-    
     if metodo_pago not in ['efectivo', 'transferencia', 'tarjeta']:
         flash("❌ Método de pago inválido", "error")
         return redirect(url_for('ventas'))
-    
-    if metodo_pago == 'tarjeta':
-        if cuotas not in [2, 3, 6]:
-            flash("❌ Cuotas inválidas", "error")
-            return redirect(url_for('seleccionar_pago'))
-    else:
-        cuotas = None  # Asegurar que sea NULL para otros métodos
+    if metodo_pago == 'tarjeta' and cuotas not in [2, 3, 6]:
+        flash("❌ Cuotas inválidas", "error")
+        return redirect(url_for('seleccionar_pago'))
+    if metodo_pago != 'tarjeta':
+        cuotas = None
 
-    # ... resto del código para registrar la venta ...
     conn = sqlite3.connect('negocio.db')
     try:
         # Verificar stock
         for item in carrito:
-            stock_actual = conn.execute("SELECT stock FROM productos WHERE id = ?", (item['producto_id'],)).fetchone()
+            stock_actual = conn.execute("SELECT stock FROM productos WHERE id = ?", (item['id'],)).fetchone()
             if not stock_actual or stock_actual[0] < item['cantidad']:
                 flash(f"❌ Stock insuficiente para {item['descripcion']}", "error")
                 conn.rollback()
                 return redirect(url_for('ventas'))
-        
         # Registrar venta
         fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        total_venta = sum(item['subtotal'] for item in carrito)
-        conn.execute("""
-            INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas)
-            VALUES (?, ?, ?, ?, ?)
-        """, (fecha, cliente_id, total_venta, metodo_pago, cuotas))
-        
+        total_venta = sum(item['precio'] * item['cantidad'] for item in carrito)
+        conn.execute("INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) VALUES (?, ?, ?, ?, ?)",
+                     (fecha, cliente_id, total_venta, metodo_pago, cuotas))
         venta_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        
-        # Registrar detalle
+        # Registrar detalles y actualizar stock
         for item in carrito:
-            conn.execute("""
-                INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario)
-                VALUES (?, ?, ?, ?)
-            """, (venta_id, item['producto_id'], item['cantidad'], item['precio']))
-            conn.execute("UPDATE productos SET stock = stock - ? WHERE id = ?", (item['cantidad'], item['producto_id']))
-        
+            conn.execute("INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)",
+                         (venta_id, item['id'], item['cantidad'], item['precio']))
+            conn.execute("UPDATE productos SET stock = stock - ? WHERE id = ?", (item['cantidad'], item['id']))
         conn.commit()
-        
         # Limpiar sesión
         session.pop('carrito', None)
         session.pop('cliente_id_seleccionado', None)
         session.pop('metodo_pago', None)
         session.pop('cuotas_pago', None)
-        
         flash("✅ Venta registrada con éxito", "success")
     except Exception as e:
         conn.rollback()
         flash(f"❌ Error al registrar venta: {str(e)}", "error")
     finally:
         conn.close()
-    
     return redirect(url_for('ventas'))
 
-# === HISTORIAL DE VENTAS GENERAL ===
+# === HISTORIAL DE VENTAS ===
 @app.route('/ventas_historial')
 @login_required
 def ventas_historial():
     page = request.args.get('page', 1, type=int)
-    search_id = request.args.get('id', '').strip()  # Búsqueda por ID
+    search_id = request.args.get('id', '').strip()
     per_page = 20
-
     conn = sqlite3.connect('negocio.db')
-    
     if search_id:
-        # Buscar venta específica por ID
         try:
             venta_id = int(search_id)
-            total = 1
             ventas = conn.execute("""
                 SELECT v.id, v.fecha, c.nombre, v.total
                 FROM ventas v
@@ -761,15 +546,13 @@ def ventas_historial():
                 WHERE v.id = ?
                 ORDER BY v.fecha DESC
             """, (venta_id,)).fetchall()
+            total = len(ventas)
             total_pages = 1
             page = 1
         except ValueError:
             flash("❌ El ID debe ser un número", "error")
-            ventas = []
-            total = 0
-            total_pages = 0
+            ventas, total, total_pages = [], 0, 0
     else:
-        # Mostrar todas las ventas (con paginación)
         total = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
         offset = (page - 1) * per_page
         ventas = conn.execute("""
@@ -780,41 +563,36 @@ def ventas_historial():
             LIMIT ? OFFSET ?
         """, (per_page, offset)).fetchall()
         total_pages = (total + per_page - 1) // per_page
-    
     conn.close()
     return render_template('ventas_historial.html', ventas=ventas, page=page, total_pages=total_pages, total=total, search_id=search_id)
+
 @app.route('/venta/<int:venta_id>')
 @login_required
 def detalle_venta(venta_id):
     conn = sqlite3.connect('negocio.db')
-    # Obtener datos de la venta
     venta = conn.execute("""
         SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
         WHERE v.id = ?
     """, (venta_id,)).fetchone()
-    
     if not venta:
         conn.close()
         flash("Venta no encontrada", "error")
         return redirect(url_for('ventas_historial'))
-    
-    # Obtener productos de la venta
     productos = conn.execute("""
         SELECT p.descripcion, dv.cantidad, dv.precio_unitario
         FROM detalle_venta dv
         JOIN productos p ON dv.producto_id = p.id
         WHERE dv.venta_id = ?
     """, (venta_id,)).fetchall()
-    
     conn.close()
-    
     return render_template('detalle_venta.html', venta=venta, productos=productos)
+
 # === REPORTES ===
-@app.route('/reporte/<formato>')
+@app.route('/reporte/excel')
 @login_required
-def reporte(formato):
+def reporte_excel():
     conn = sqlite3.connect('negocio.db')
     mes_actual = datetime.now().strftime('%Y-%m')
     df = pd.read_sql_query("""
@@ -827,20 +605,13 @@ def reporte(formato):
         WHERE strftime('%Y-%m', v.fecha) = ?
         ORDER BY v.fecha
     """, conn, params=(mes_actual,))
-    hoy=datetime.now().strftime('%d-%m-%Y')
-    if formato == 'excel':
-        output_path = f'reporte_ventas {hoy}.xlsx'
-        df.to_excel(output_path, index=False)
-        return send_file(output_path, as_attachment=True)
-
-    elif formato == 'pdf':
-        output_path = f'reporte_ventas {hoy}.csv'
-        df.to_csv(output_path, index=False)
-        return send_file(output_path, as_attachment=True)
-
+    hoy = datetime.now().strftime('%d-%m-%Y')
+    output_path = f'reporte_ventas_{hoy}.xlsx'
+    df.to_excel(output_path, index=False)
     conn.close()
-    return "Formato no soportado"
+    return send_file(output_path, as_attachment=True)
 
+# === INICIAR APLICACIÓN ===
 if __name__ == '__main__':
     init_db()
     print("Sistema iniciado. Abre http://localhost:5000")
