@@ -232,7 +232,6 @@ def nuevo_producto():
 
     return render_template('nuevo_producto.html')
 
-
 @app.route('/editar_producto/<int:producto_id>', methods=['GET', 'POST'])
 @login_required
 def editar_producto(producto_id):
