@@ -68,7 +68,7 @@ def cargar_tiendanube():
                 continue
             
             nombre = row[1].strip()
-            precio_str = row[9].replace('.', '').replace(',', '.') if row[9] else '0'
+            precio_str = float(row[9].replace(',', '')) if row[9] else 0.0
             stock_str = row[15] if row[15] else '0'
             sku = row[16].strip() if row[16] else None
             
