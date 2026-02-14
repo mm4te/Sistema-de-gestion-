@@ -145,7 +145,7 @@
             <tr>
               <td data-label="Código">{{ p[1] }}</td>
               <td data-label="Descripción">{{ p[2] }}</td>
-              <td data-label="Precio">${{ "%.2f"|format(p[3]) }}</td>
+              <td data-label="Precio">$ {{ p[3] | pesos }}</td>
               <td data-label="Stock">{{ p[4] }}</td>
               <td data-label="Acciones">
                 <a href="/editar_producto/{{ p[0] }}"

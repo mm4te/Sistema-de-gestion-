@@ -54,11 +54,11 @@
     <div class="sidebar">
       <h2><span> Comenda Deco</span></h2>
       <a href="/"><span>📊 Inicio</span></a>
-      <a href="/inventario" ><span>📦 Inventario</span></a>
-      <a href="/ventas"class="active"><span>🛒 Ventas</span></a>
+      <a href="/inventario"><span>📦 Inventario</span></a>
+      <a href="/ventas" class="active"><span>🛒 Ventas</span></a>
       <a href="/clientes"><span>👥 Clientes</span></a>
       <a href="/ventas_historial"><span>📈 Ventas Hist.</span></a>
-       
+
       <a href="/reporte/excel"><span>📥 Reporte</span></a>
       <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
@@ -122,6 +122,7 @@
           </div>
 
           <!-- Columna derecha: Carrito -->
+          <!-- Columna derecha: Carrito -->
           <div style="flex: 1; min-width: 300px;">
             <h3>🛒 Carrito ({{ carrito|length }} productos)</h3>
 
@@ -132,14 +133,25 @@
               <div class="carrito-item">
                 <div class="carrito-item-info">
                   <strong>{{ item.descripcion }} ({{ item.codigo }})</strong><br>
-                  ${{ "%.2f"|format(item.precio) }} x {{ item.cantidad }} = ${{ "%.2f"|format(item.subtotal) }}
+
+                  <!-- Formulario para editar el precio -->
+                  <form method="post" action="/actualizar_precio_carrito" style="display: inline; margin-right: 10px;">
+                    <input type="hidden" name="index" value="{{ loop.index0 }}">
+                    <input type="number" name="nuevo_precio" value="{{ '%.2f'|format(item.precio) }}" step="0.01"
+                      min="0.01"
+                      style="width: 80px; padding: 4px; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px;"
+                      required>
+                    <button type="submit" class="btn-small btn-edit" style="padding: 4px 8px;">✏️</button>
+                  </form>
+
+                  x {{ item.cantidad }} = ${{ "%.2f"|format(item.precio * item.cantidad) }}
                 </div>
                 <div class="carrito-item-actions">
-                  <form method="post" action="/actualizar_carrito" style="display: inline;">
+                  <form method="post" action="/actualizar_carrito" style="display: inline; margin-right: 8px;">
                     <input type="hidden" name="index" value="{{ loop.index0 }}">
                     <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1"
                       style="width: 60px; padding: 4px;" required>
-                    <button type="submit" class="btn-small btn-edit">✏️</button>
+                    <button type="submit" class="btn-small btn-edit">🔄</button>
                   </form>
                   <a href="/eliminar_del_carrito/{{ loop.index0 }}" class="btn-small btn-delete"
                     onclick="return confirm('¿Eliminar del carrito?')">🗑️</a>
@@ -154,9 +166,8 @@
 
             <!-- Botón de selección de pago -->
             {% if cliente_id_seleccionado and carrito %}
-            <a href="/seleccionar_pago"
-              style="display: block; margin-top: 15px; background: #2ecc71; color: white; padding: 12px 25px; 
-                        font-size: 1.1rem; text-decoration: none; border-radius: 8px; text-align: center; font-weight: bold;">
+            <a href="/seleccionar_pago" style="display: block; margin-top: 15px; background: #2ecc71; color: white; padding: 12px 25px; 
+            font-size: 1.1rem; text-decoration: none; border-radius: 8px; text-align: center; font-weight: bold;">
               💳 Seleccionar Método de Pago
             </a>
             {% elif cliente_id_seleccionado %}

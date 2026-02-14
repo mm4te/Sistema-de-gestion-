@@ -68,7 +68,7 @@ def cargar_tiendanube():
                 continue
             
             nombre = row[1].strip()
-            precio_str = float(row[9].replace(',', '')) if row[9] else 0.0
+            precio_str = row[9].replace(',', '') if row[9] else '0'
             stock_str = row[15] if row[15] else '0'
             sku = row[16].strip() if row[16] else None
             
@@ -103,6 +103,13 @@ def cargar_tiendanube():
     
     return redirect(url_for('inventario'))
 # Inicializar base de datos
+@app.template_filter('pesos')
+def formato_pesos(valor):
+    try:
+        return f"{float(valor):,.0f}".replace(',', '.')
+    except:
+        return valor
+
 def init_db():
     conn = sqlite3.connect('negocio.db')
     c = conn.cursor()
@@ -115,6 +122,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS clientes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nombre TEXT NOT NULL,
+                    cuit TEXT NOT NULL,
                     telefono TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS ventas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -421,13 +429,14 @@ def clientes():
 def nuevo_cliente():
     if request.method == 'POST':
         nombre = request.form.get('nombre', '').strip()
+        cuit = request.form.get('cuit', '').strip()
         telefono = request.form.get('telefono', '').strip()
         if not nombre:
             flash("❌ El nombre es obligatorio", "error")
         else:
             try:
                 conn = sqlite3.connect('negocio.db')
-                conn.execute("INSERT INTO clientes (nombre, telefono) VALUES (?, ?)", (nombre, telefono))
+                conn.execute("INSERT INTO clientes (nombre, cuit,telefono) VALUES (?, ?, ?)", (nombre, cuit,telefono))
                 conn.commit()
                 flash("✅ Cliente creado correctamente", "success")
                 return redirect(url_for('clientes'))
@@ -491,7 +500,8 @@ def ventas():
     conn.close()
     
     carrito = session.get('carrito', [])
-    total = sum(item['subtotal'] for item in carrito)
+    
+    total = sum(item['precio'] * item['cantidad'] for item in session.get('carrito', []))
     
     return render_template(
         'ventas.html', 
@@ -505,79 +515,113 @@ def ventas():
 @app.route('/agregar_al_carrito', methods=['POST'])
 @login_required
 def agregar_al_carrito():
-    producto_id = request.form.get('producto_id', type=int)
-    cantidad = request.form.get('cantidad', type=int)
+    producto_id = request.form.get('producto_id')
+    cantidad = int(request.form.get('cantidad', 1))
     
-    if not producto_id or not cantidad or cantidad <= 0:
-        flash("❌ Cantidad inválida", "error")
+    if not producto_id or cantidad <= 0:
+        flash("❌ Cantidad o producto inválido", "error")
         return redirect(url_for('ventas'))
     
     conn = sqlite3.connect('negocio.db')
-    prod = conn.execute("SELECT id, codigo, descripcion, precio, stock FROM productos WHERE id = ?", (producto_id,)).fetchone()
+    p = conn.execute(
+        "SELECT id, codigo, descripcion, precio, stock FROM productos WHERE id = ?", 
+        (producto_id,)
+    ).fetchone()
     conn.close()
     
-    if not prod:
+    if not p:
         flash("❌ Producto no encontrado", "error")
         return redirect(url_for('ventas'))
     
-    if prod[4] < cantidad:
-        flash(f"❌ Stock insuficiente. Disponible: {prod[4]}", "error")
+    if cantidad > p[4]:  # p[4] = stock
+        flash(f"❌ Stock insuficiente. Disponible: {p[4]}", "error")
         return redirect(url_for('ventas'))
     
-    # Obtener carrito actual
-    carrito = session.get('carrito', [])
+    # Inicializar carrito
+    if 'carrito' not in session:
+        session['carrito'] = []
     
-    # Verificar si el producto ya está en el carrito
+    carrito = session['carrito']
     producto_existente = None
+    
     for item in carrito:
-        if item['producto_id'] == producto_id:
+        if item['id'] == p[0]:
             producto_existente = item
             break
     
     if producto_existente:
-        # Sumar cantidades
         nueva_cantidad = producto_existente['cantidad'] + cantidad
-        # Verificar stock total
-        if prod[4] < nueva_cantidad:
-            flash(f"❌ No hay suficiente stock. Máximo disponible: {prod[4]}", "error")
-            return redirect(url_for('ventas'))
-        producto_existente['cantidad'] = nueva_cantidad
-        producto_existente['subtotal'] = producto_existente['precio'] * nueva_cantidad
+        if nueva_cantidad > p[4]:
+            flash(f"❌ No hay suficiente stock para {p[2]}", "error")
+        else:
+            producto_existente['cantidad'] = nueva_cantidad
     else:
-        # Agregar nuevo producto
-        subtotal = prod[3] * cantidad
-        carrito.append({
-            'producto_id': prod[0],
-            'codigo': prod[1],
-            'descripcion': prod[2],
-            'precio': prod[3],
-            'cantidad': cantidad,
-            'subtotal': subtotal
-        })
+        nuevo_item = {
+            'id': p[0],
+            'codigo': p[1],
+            'descripcion': p[2],
+            'precio_original': float(p[3]),
+            'precio': float(p[3]),  # ← Este será el campo editable
+            'cantidad': cantidad
+        }
+        carrito.append(nuevo_item)
     
     session['carrito'] = carrito
-    flash("✅ Producto agregado al carrito", "success")
+    flash(f"✅ {p[2]} agregado al carrito", "success")
+    return redirect(url_for('ventas'))
+@app.route('/actualizar_precio_carrito', methods=['POST'])
+@login_required
+def actualizar_precio_carrito():
+    index = int(request.form.get('index'))
+    nuevo_precio = float(request.form.get('nuevo_precio'))
+    
+    if 'carrito' not in session or index >= len(session['carrito']):
+        flash("❌ Error al actualizar el precio", "error")
+        return redirect(url_for('ventas'))
+    
+    if nuevo_precio <= 0:
+        flash("❌ El precio debe ser mayor a 0", "error")
+        return redirect(url_for('ventas'))
+    
+    carrito = session['carrito']
+    carrito[index]['precio'] = nuevo_precio
+    session['carrito'] = carrito
+    
+    flash("✅ Precio actualizado", "success")
     return redirect(url_for('ventas'))
 @app.route('/actualizar_carrito', methods=['POST'])
 @login_required
 def actualizar_carrito():
-    index = request.form.get('index', type=int)
-    nueva_cantidad = request.form.get('cantidad', type=int)
+    index = int(request.form.get('index'))
+    nueva_cantidad = int(request.form.get('cantidad'))
+    if 'carrito' not in session or index >= len(session['carrito']):
+        flash("❌ Error al actualizar el carrito", "error")
+        return redirect(url_for('ventas'))
     
-    carrito = session.get('carrito', [])
-    if 0 <= index < len(carrito) and nueva_cantidad > 0:
-        item = carrito[index]
-        conn = sqlite3.connect('negocio.db')
-        stock = conn.execute("SELECT stock FROM productos WHERE id = ?", (item['producto_id'],)).fetchone()
-        conn.close()
-        if stock and stock[0] >= nueva_cantidad:
-            item['cantidad'] = nueva_cantidad
-            item['subtotal'] = item['precio'] * nueva_cantidad
-            session['carrito'] = carrito
-        else:
-            flash(f"❌ Stock insuficiente para {item['descripcion']}", "error")
+    if nueva_cantidad <= 0:
+        flash("❌ La cantidad debe ser mayor a 0", "error")
+        return redirect(url_for('ventas'))
+    
+    # Obtener el producto para verificar stock
+    item = session['carrito'][index]
+    conn = sqlite3.connect('negocio.db')
+    stock_actual = conn.execute(
+        "SELECT stock FROM productos WHERE id = ?", (item['id'],)
+    ).fetchone()
+    conn.close()
+    
+    if not stock_actual:
+        flash("❌ Producto no encontrado", "error")
+        return redirect(url_for('ventas'))
+    
+    if nueva_cantidad > stock_actual[0]:
+        flash(f"❌ Stock insuficiente. Disponible: {stock_actual[0]}", "error")
+        return redirect(url_for('ventas'))
+    
+    # Actualizar cantidad en el carrito
+    session['carrito'][index]['cantidad'] = nueva_cantidad
+    flash("✅ Cantidad actualizada", "success")
     return redirect(url_for('ventas'))
-
 @app.route('/eliminar_del_carrito/<int:index>')
 @login_required
 def eliminar_del_carrito(index):

@@ -33,6 +33,7 @@
             <tr>
               <th>Nombre</th>
               <th>Teléfono</th>
+              <th>CUIT</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -41,6 +42,7 @@
             <tr>
               <td data-label="Nombre">{{ c[1] }}</td>
               <td data-label="Teléfono">{{ c[2] or '—' }}</td>
+              <td data-label="CUIT">{{ c[3] or '—' }}</td>
               <td data-label="Acciones">
                 <a href="/cliente/{{ c[0] }}" style="color: #4361ee; text-decoration: none;">📋 Historial</a>
               </td>
