@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,13 +9,12 @@
 <body>
   <div class="layout">
     <div class="sidebar">
-      <h2><span> Comenda Deco</span></h2>
+      <h2><span>Comenda Deco</span></h2>
       <a href="/"><span>📊 Inicio</span></a>
       <a href="/inventario"><span>📦 Inventario</span></a>
       <a href="/ventas"><span>🛒 Ventas</span></a>
       <a href="/clientes"><span>👥 Clientes</span></a>
-      <a href="/ventas_historial" class="active"><span>📈 Ventas Hist.</span></a>
-       
+      <a href="/ventas_historial"><span>📈 Ventas Hist.</span></a>
       <a href="/reporte/excel"><span>📥 Reporte</span></a>
       <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
     </div>
@@ -33,14 +32,13 @@
         {% endwith %}
 
         <a href="/ventas_historial" class="back-link">← Volver al historial</a>
-
         <h1>📋 Detalle de Venta #{{ venta[0] }}</h1>
 
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <div class="card" style="margin: 20px 0;">
           <p><strong>Fecha:</strong> {{ venta[1] }}</p>
           <p><strong>Cliente:</strong> {{ venta[2] }}</p>
           <p><strong>Total:</strong> ${{ "%.2f"|format(venta[3]) }}</p>
-          <p><strong>Método de pago:</strong> 
+          <p><strong>Método de pago:</strong>
             {% if venta[4] == 'efectivo' %}💵 Efectivo
             {% elif venta[4] == 'transferencia' %}📲 Transferencia
             {% elif venta[4] == 'tarjeta' %}💳 Tarjeta
@@ -52,26 +50,28 @@
 
         <h2>Productos comprados</h2>
         {% if productos %}
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Precio Unitario</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in productos %}
+          <div class="table-responsive">
+            <table>
+              <thead>
                 <tr>
-                  <td data-label="Producto">{{ p[0] }}</td>
-                  <td data-label="Cantidad">{{ p[1] }}</td>
-                  <td data-label="Precio Unitario">$ {{ "%.2f"|format(p[2]) }}</td>
-                  <td data-label="Subtotal">$ {{ "%.2f"|format(p[1] * p[2]) }}</td>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                  <th>Precio Unitario</th>
+                  <th>Subtotal</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for p in productos %}
+                  <tr>
+                    <td data-label="Producto">{{ p[0] }}</td>
+                    <td data-label="Cantidad">{{ p[1] }}</td>
+                    <td data-label="Precio Unitario">$ {{ "%.2f"|format(p[2]) }}</td>
+                    <td data-label="Subtotal">$ {{ "%.2f"|format(p[1] * p[2]) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         {% else %}
           <p>No se encontraron productos en esta venta.</p>
         {% endif %}

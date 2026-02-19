@@ -150,8 +150,15 @@ table th {
   font-weight: 600;
   color: var(--gray);
 }
-
+.btn-primary { background: var(--primary); color: white; padding: 8px 16px; text-decoration: none; border-radius: 6px; display: inline-block; }
+.btn-secondary { background: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 6px; display: inline-block; margin-right: 10px; }
+.pagination-link { padding: 6px 12px; border: 1px solid #dee2e6; border-radius: 6px; text-decoration: none; color: var(--primary); }
+.file-upload { display: inline-block; background: #f78221; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+.file-upload input { display: none; }
 /* Product card in sales */
+.card {
+  background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #4361ee;
+}
 .product-card {
   border: 1px solid var(--border);
   border-radius: 10px;
