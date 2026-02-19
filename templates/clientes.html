@@ -48,7 +48,9 @@
                 <a href="/cliente/{{ c[0] }}" style="color: #4361ee; text-decoration: none;">📋 Historial</a>
               </td>
               <td data-label="Acciones">
-                <a href="/editar_cliente/{{ c[0] }}" class="btn-small" style="background-color: #4361ee; color: white;">✏️ Editar</a>
+                <form action="/editar_cliente/{{ c[0] }}" method="get" style="display: inline-block;">
+                  <button type="submit" class="btn-small btn-edit" style="background-color: #4361ee;">✏️ Editar</button>
+                </form>
                 <form action="/eliminar_cliente/{{ c[0] }}" method="post" style="display: inline-block;">
                   <button type="submit" class="btn-small btn-delete" style="background-color: red;" onclick="return confirm('¿Confirma que desea eliminar este cliente?');">🗑️ Eliminar</button>
                 </form>
