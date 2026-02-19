@@ -34,6 +34,7 @@
               <th>Nombre</th>
               <th>Teléfono</th>
               <th>CUIT</th>
+              <th>Historial</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -43,8 +44,14 @@
               <td data-label="Nombre">{{ c[1] }}</td>
               <td data-label="Teléfono">{{ c[2] or '—' }}</td>
               <td data-label="CUIT">{{ c[3] or '—' }}</td>
-              <td data-label="Acciones">
+              <td data-label="Historial">
                 <a href="/cliente/{{ c[0] }}" style="color: #4361ee; text-decoration: none;">📋 Historial</a>
+              </td>
+              <td data-label="Acciones">
+                <a href="/editar_cliente/{{ c[0] }}" class="btn-small" style="background-color: #4361ee; color: white;">✏️ Editar</a>
+                <form action="/eliminar_cliente/{{ c[0] }}" method="post" style="display: inline-block;">
+                  <button type="submit" class="btn-small btn-delete" style="background-color: red;" onclick="return confirm('¿Confirma que desea eliminar este cliente?');">🗑️ Eliminar</button>
+                </form>
               </td>
             </tr>
             {% endfor %}
