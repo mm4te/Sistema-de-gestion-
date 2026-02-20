@@ -42,7 +42,7 @@ def init_db():
     )''')
     c.execute("SELECT COUNT(*) FROM clientes")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO clientes (nombre, telefono) VALUES ('Consumidor Final', '')")
+        c.execute("INSERT INTO clientes (nombre, telefono, cuit) VALUES ('Consumidor Final', '', '')")
     conn.commit()
     conn.close()
 
