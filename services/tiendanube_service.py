@@ -70,7 +70,9 @@ def importar_productos_tn():
 # ==========================================
 
 def actualizar_stock_tn_service(variant_id, nuevo_stock):
-
+    print("Enviando a Tiendanube:")
+    print("Variant ID:", variant_id)
+    print("Nuevo stock:", nuevo_stock)
     # 1️⃣ Buscar product_id en la base
     conn = sqlite3.connect("negocio.db")
     cursor = conn.cursor()

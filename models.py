@@ -3,6 +3,7 @@ import sqlite3
 import os
 from datetime import datetime
 from werkzeug.security import generate_password_hash
+from services.tiendanube_service import actualizar_stock_tn_service
 
 def init_db():
     conn = sqlite3.connect('negocio.db')
@@ -131,35 +132,75 @@ def get_cliente_by_id(cliente_id):
     return c
 
 # === Ventas ===
+
 def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
     conn = sqlite3.connect('negocio.db')
+
     try:
-        # Verificar stock
+        # 🔎 Verificar stock
         for item in carrito:
-            stock_actual = conn.execute("SELECT stock FROM productos WHERE id = ?", (item['id'],)).fetchone()
+            stock_actual = conn.execute(
+                "SELECT stock FROM productos WHERE id = ?",
+                (item['id'],)
+            ).fetchone()
+
             if not stock_actual or stock_actual[0] < item['cantidad']:
                 return False, f"Stock insuficiente para {item['descripcion']}"
-        
-        # Registrar venta
+
+        # 🧾 Registrar venta
         fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         total_venta = sum(item['precio'] * item['cantidad'] for item in carrito)
-        conn.execute("INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) VALUES (?, ?, ?, ?, ?)",
-                     (fecha, cliente_id, total_venta, metodo_pago, cuotas))
+
+        conn.execute("""
+            INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) 
+            VALUES (?, ?, ?, ?, ?)
+        """, (fecha, cliente_id, total_venta, metodo_pago, cuotas))
+
         venta_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        
-        # Detalles y actualizar stock
+
+        # 📦 Registrar detalle y actualizar stock
         for item in carrito:
-            conn.execute("INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)",
-                         (venta_id, item['id'], item['cantidad'], item['precio']))
-            conn.execute("UPDATE productos SET stock = stock - ? WHERE id = ?", (item['cantidad'], item['id']))
+
+            # Insertar detalle
+            conn.execute("""
+                INSERT INTO detalle_venta 
+                (venta_id, producto_id, cantidad, precio_unitario) 
+                VALUES (?, ?, ?, ?)
+            """, (venta_id, item['id'], item['cantidad'], item['precio']))
+
+            # Actualizar stock local
+            conn.execute("""
+                UPDATE productos 
+                SET stock = stock - ? 
+                WHERE id = ?
+            """, (item['cantidad'], item['id']))
+
         conn.commit()
+
+        # 🔥 IMPORTANTE:
+        # Después del commit, sincronizamos con Tiendanube
+        for item in carrito:
+
+            variant_row = conn.execute("""
+                SELECT variant_id, stock 
+                FROM productos 
+                WHERE id = ?
+            """, (item['id'],)).fetchone()
+
+            if variant_row and variant_row[0]:
+                variant_id = variant_row[0]
+                stock_actualizado = variant_row[1]
+
+                actualizar_stock_tn_service(variant_id, stock_actualizado)
+
         return True, venta_id
+
     except Exception as e:
         conn.rollback()
         return False, str(e)
-    finally:
-        conn.close()
 
+    finally:
+        conn.close()    
 def get_ventas_historial(page=1, per_page=20, search_id=None):
     conn = sqlite3.connect('negocio.db')
     if search_id:
