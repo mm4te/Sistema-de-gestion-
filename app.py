@@ -9,7 +9,8 @@ from routes.clientes import clientes_bp
 from routes.reportes import reportes_bp
 from routes.ventas_historial import ventas_historial_bp 
 from routes.tiendanube import tiendanube_bp
-from routes.webhook_tn import wbhook_tn  
+from routes.webhook_tn import wbhook_tn
+
 def create_app():
     app = Flask(__name__)
     app.secret_key = 'clave_secreta_negocio_2025_segura'

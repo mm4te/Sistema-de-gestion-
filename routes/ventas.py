@@ -83,7 +83,7 @@ def agregar_al_carrito():
             return redirect(url_for('ventas.ventas'))
     carrito.append({
         'id': p[0],
-        'codigo': p[1],
+        'sku': p[1],
         'descripcion': p[2],
         'precio_original': float(p[3]),
         'precio': float(p[3]),

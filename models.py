@@ -9,11 +9,17 @@ def init_db():
     conn = sqlite3.connect('negocio.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS productos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        codigo TEXT UNIQUE NOT NULL,
-        descripcion TEXT NOT NULL,
-        precio REAL NOT NULL,
-        stock INTEGER NOT NULL
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    sku TEXT UNIQUE NOT NULL,
+    descripcion TEXT NOT NULL,
+    precio REAL NOT NULL,
+    stock INTEGER NOT NULL DEFAULT 0,
+
+    variant_id TEXT UNIQUE,
+    product_id TEXT,
+
+    activo INTEGER DEFAULT 1
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +60,7 @@ def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=2
     params = []
     
     if search:
-        condiciones.append("(codigo LIKE ? OR descripcion LIKE ?)")
+        condiciones.append("(sku LIKE ? OR descripcion LIKE ?)")
         params.extend([f'%{search}%', f'%{search}%'])
     if stock_filter == 'sin_stock':
         condiciones.append("stock = 0")
@@ -73,17 +79,17 @@ def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=2
     conn.close()
     return productos, total
 
-def add_producto(codigo, descripcion, precio, stock):
+def add_producto(sku, descripcion, precio, stock):
     conn = sqlite3.connect('negocio.db')
-    conn.execute("INSERT INTO productos (codigo, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
-                 (codigo, descripcion, precio, stock))
+    conn.execute("INSERT INTO productos (sku, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
+                 (sku, descripcion, precio, stock))
     conn.commit()
     conn.close()
 
-def update_producto(producto_id, codigo, descripcion, precio, stock):
+def update_producto(producto_id, sku, descripcion, precio, stock):
     conn = sqlite3.connect('negocio.db')
-    conn.execute("UPDATE productos SET codigo = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
-                 (codigo, descripcion, precio, stock, producto_id))
+    conn.execute("UPDATE productos SET sku = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
+                 (sku, descripcion, precio, stock, producto_id))
     conn.commit()
     conn.close()
 

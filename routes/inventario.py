@@ -31,11 +31,11 @@ def sync_tiendanube():
 @inventario_bp.route('/nuevo_producto', methods=['GET', 'POST'])
 def nuevo_producto():
     if request.method == 'POST':
-        codigo = request.form.get('codigo', '').strip()
+        sku = request.form.get('sku', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
-        if not all([codigo, descripcion, precio, stock]):
+        if not all([sku, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
         else:
             try:
@@ -43,11 +43,11 @@ def nuevo_producto():
                 stock = int(stock)
                 if precio <= 0 or stock < 0:
                     raise ValueError
-                add_producto(codigo, descripcion, precio, stock)
+                add_producto(sku, descripcion, precio, stock)
                 flash("✅ Producto creado correctamente", "success")
                 return redirect(url_for('inventario.inventario'))
             except sqlite3.IntegrityError:
-                flash("❌ El código ya existe. Usa uno único.", "error")
+                flash("❌ El SKU ya existe. Usa uno único.", "error")
             except Exception as e:
                 flash(f"❌ Error al guardar: {str(e)}", "error")
     return render_template('nuevo_producto.html')
@@ -59,11 +59,11 @@ def editar_producto(producto_id):
         flash("Producto no encontrado", "error")
         return redirect(url_for('inventario.inventario'))
     if request.method == 'POST':
-        codigo = request.form.get('codigo', '').strip()
+        sku = request.form.get('sku', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
-        if not all([codigo, descripcion, precio, stock]):
+        if not all([sku, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
         else:
             try:
@@ -71,11 +71,11 @@ def editar_producto(producto_id):
                 stock = int(stock)
                 if precio <= 0 or stock < 0:
                     raise ValueError
-                update_producto(producto_id, codigo, descripcion, precio, stock)
+                update_producto(producto_id, sku, descripcion, precio, stock)
                 flash("✅ Producto actualizado correctamente", "success")
                 return redirect(url_for('inventario.inventario'))
             except sqlite3.IntegrityError:
-                flash("❌ El código ya existe. Usa uno único.", "error")
+                flash("❌ El SKU ya existe. Usa uno único.", "error")
             except Exception as e:
                 flash(f"❌ Error: {str(e)}", "error")
     return render_template('editar_producto.html', producto=producto)
