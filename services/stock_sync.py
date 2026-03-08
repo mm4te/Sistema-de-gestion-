@@ -16,7 +16,7 @@ def sincronizar_stock_por_venta(variant_id, cantidad_vendida):
     # 1️⃣ Obtener stock actual
     cursor.execute("""
         SELECT stock 
-        FROM productos_tiendanube
+        FROM productos
         WHERE variant_id = ?
     """, (variant_id,))
 
@@ -40,7 +40,7 @@ def sincronizar_stock_por_venta(variant_id, cantidad_vendida):
 
     # 2️⃣ Actualizar stock local
     cursor.execute("""
-        UPDATE productos_tiendanube
+        UPDATE productos
         SET stock = ?
         WHERE variant_id = ?
     """, (nuevo_stock, variant_id))

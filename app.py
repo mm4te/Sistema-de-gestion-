@@ -7,9 +7,9 @@ from routes.inventario import inventario_bp
 from routes.ventas import ventas_bp
 from routes.clientes import clientes_bp
 from routes.reportes import reportes_bp
-from routes.ventas_historial import ventas_historial_bp  # ← Agrega esta línea
+from routes.ventas_historial import ventas_historial_bp 
 from routes.tiendanube import tiendanube_bp
-
+from routes.webhook_tn import wbhook_tn  
 def create_app():
     app = Flask(__name__)
     app.secret_key = 'clave_secreta_negocio_2025_segura'
@@ -31,7 +31,7 @@ def create_app():
     app.register_blueprint(reportes_bp)
     app.register_blueprint(ventas_historial_bp)
     app.register_blueprint(tiendanube_bp)
-
+    app.register_blueprint(wbhook_tn) 
     return app
 
 if __name__ == '__main__':

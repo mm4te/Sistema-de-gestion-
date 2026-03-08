@@ -18,7 +18,7 @@ def ventas():
     cliente_id = session.get('cliente_id_seleccionado')
     conn = sqlite3.connect('negocio.db')
     clientes = conn.execute("SELECT id, nombre FROM clientes").fetchall()
-    productos = conn.execute("SELECT id, codigo, descripcion, precio, stock FROM productos WHERE stock > 0").fetchall()
+    productos = conn.execute("SELECT id, sku, descripcion, precio, stock FROM productos WHERE stock > 0 OR stock IS NULL").fetchall()
     conn.close()
     carrito = session.get('carrito', [])
     total = sum(item['precio'] * item['cantidad'] for item in carrito)

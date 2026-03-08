@@ -75,13 +75,9 @@
         </form>
 
         <!-- Importar desde Tienda Nube -->
-        <form method="post" action="/cargar_tiendanube" enctype="multipart/form-data" style="margin-bottom: 20px;">
-          <label class="file-upload">
-            📤 Importar desde Tienda Nube
-            <input type="file" name="file" accept=".csv" required>
-          </label>
-          <button type="submit" style="margin-left: 10px;">Cargar</button>
-        </form>
+        <a href="{{ url_for('inventario.sync_tiendanube') }}" class="btn-secondary">
+            🔄 Sincronizar con TiendaNube
+        </a>
 
         <!-- Tabla de productos -->
         {% if productos %}

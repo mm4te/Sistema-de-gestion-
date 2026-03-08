@@ -29,42 +29,39 @@ def importar_productos_tn():
     conn = sqlite3.connect("negocio.db")
     cursor = conn.cursor()
 
+    count = 0
     for p in productos:
 
-        product_id = p["id"]
-        nombre = p["name"]["es"] if "es" in p["name"] else list(p["name"].values())[0]
+        nombre = p["name"].get("es") or list(p["name"].values())[0]
 
         for variante in p.get("variants", []):
 
-            variant_id = variante.get("id")
-            sku = variante.get("sku")
+            variant_id = str(variante.get("id"))
+            sku = variante.get("sku") or f"TN_{variant_id}"
             precio = float(variante.get("price") or 0)
             stock_raw = variante.get("stock")
 
-            if stock_raw is None:
-                stock = None
-            else:
-                stock = int(stock_raw)
+            # Si viene None lo dejamos en 0 (no podés guardar NULL porque stock es NOT NULL)
+            stock = int(stock_raw) if stock_raw is not None else 0
 
             cursor.execute("""
-                SELECT 1 FROM productos_tiendanube 
-                WHERE variant_id = ?
-            """, (variant_id,))
-            existe = cursor.fetchone()
+                INSERT INTO productos 
+                (sku, descripcion, precio, stock, variant_id)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(sku) DO UPDATE SET
+                    descripcion = excluded.descripcion,
+                    precio = excluded.precio,
+                    stock = excluded.stock,
+                    variant_id = excluded.variant_id
+            """, (sku, nombre, precio, stock, variant_id))
 
-            if not existe:
-                cursor.execute("""
-                    INSERT INTO productos_tiendanube 
-                    (product_id, variant_id, nombre, sku, precio, stock)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (product_id, variant_id, nombre, sku, precio, stock))
+            count += 1
 
     conn.commit()
     conn.close()
 
-    return {"ok": True, "mensaje": "Productos importados correctamente 🚀"}
 
-
+    return {"ok": True, "mensaje": f"{count} productos sincronizados correctamente 🚀"}
 # ==========================================
 # ACTUALIZAR STOCK EN TIENDANUBE
 # ==========================================
@@ -78,8 +75,8 @@ def actualizar_stock_tn_service(variant_id, nuevo_stock):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT tienda_id 
-        FROM productos_tiendanube 
+        SELECT product_id 
+        FROM productos
         WHERE variant_id = ?
     """, (variant_id,))
 
@@ -97,7 +94,7 @@ def actualizar_stock_tn_service(variant_id, nuevo_stock):
 
     headers = {
         "Authentication": f"bearer {TOKEN}",
-        "User-Agent": "SistemaGestion (tuemail@email.com)",
+        "User-Agent": "Comenda App (mateopatatian@gmail.com)",
         "Content-Type": "application/json"
     }
 
@@ -127,7 +124,7 @@ def actualizar_stock_tn_service(variant_id, nuevo_stock):
     cursor = conn.cursor()
 
     cursor.execute("""
-        UPDATE productos_tiendanube
+        UPDATE productos
         SET stock = ?
         WHERE variant_id = ?
     """, (nuevo_stock, variant_id))
