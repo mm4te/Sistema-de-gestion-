@@ -4,13 +4,17 @@ from flask import Blueprint, request, jsonify
 import sqlite3
 import requests
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
+# Load variables from .env file
+load_dotenv()
 wbhook_tn = Blueprint('webhook_tn', __name__)
 
 # CONFIGURACION
 
-STORE_ID = "7324186"
-ACCESS_TOKEN = "c2883f94ba3987c74d5246e716d89b40d35bdf30"
+STORE_ID = os.getenv("TN_STORE_ID")
+ACCESS_TOKEN = os.getenv("TN_ACCESS_TOKEN")
 
 @wbhook_tn.route("/webhook/tiendanube", methods=["POST"])
 def webhook_tiendanube():

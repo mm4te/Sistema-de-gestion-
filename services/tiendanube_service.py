@@ -2,9 +2,13 @@
 
 import requests
 import sqlite3
+import os
+from dotenv import load_dotenv
 
-TOKEN = "c2883f94ba3987c74d5246e716d89b40d35bdf30"
-STORE_ID = "7324186"
+# Load variables from .env file
+load_dotenv()
+TOKEN = os.getenv("TN_ACCESS_TOKEN")
+STORE_ID = os.getenv("TN_STORE_ID")
 
 
 # ==========================================
