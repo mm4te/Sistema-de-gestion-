@@ -67,7 +67,7 @@ def agregar_al_carrito():
     if not p:
         flash("❌ Producto no encontrado", "error")
         return redirect(url_for('ventas.ventas'))
-    if cantidad > p[4]:
+    if cantidad > p[5]:
         flash(f"❌ Stock insuficiente. Disponible: {p[4]}", "error")
         return redirect(url_for('ventas.ventas'))
     carrito = session.get('carrito', [])

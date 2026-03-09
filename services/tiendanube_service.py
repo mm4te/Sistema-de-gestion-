@@ -37,6 +37,13 @@ def importar_productos_tn():
     for p in productos:
 
         nombre = p["name"].get("es") or list(p["name"].values())[0]
+    # obtener imagen del producto
+        imagen_url = None
+        if p.get("images"):
+            for img in p["images"]:
+                if str(img.get("product_id")) == str(p.get("id")):
+                    imagen_url = img.get("src")
+                    break
 
         for variante in p.get("variants", []):
 
@@ -44,20 +51,26 @@ def importar_productos_tn():
             sku = variante.get("sku") or f"TN_{variant_id}"
             precio = float(variante.get("price") or 0)
             stock_raw = variante.get("stock")
-
-            # Si viene None lo dejamos en 0 (no podés guardar NULL porque stock es NOT NULL)
-            stock = int(stock_raw) if stock_raw is not None else 0
-
+            product_id = str(variante.get("product_id"))
+            p_price = variante.get("promotional_price")
+            promotional_price = float(p_price) if p_price is not None else None
+            barcode = variante.get("barcode") or ""
+            stock = int(stock_raw) if stock_raw is not None else None
+         
             cursor.execute("""
                 INSERT INTO productos 
-                (sku, descripcion, precio, stock, variant_id)
-                VALUES (?, ?, ?, ?, ?)
+                (sku, descripcion, precio, stock, variant_id, product_id, promotional_price, barcode, imagen_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(sku) DO UPDATE SET
                     descripcion = excluded.descripcion,
                     precio = excluded.precio,
                     stock = excluded.stock,
-                    variant_id = excluded.variant_id
-            """, (sku, nombre, precio, stock, variant_id))
+                    variant_id = excluded.variant_id,
+                    product_id = excluded.product_id,
+                    promotional_price = excluded.promotional_price,
+                    barcode = excluded.barcode,
+                    imagen_url = excluded.imagen_url
+            """, (sku, nombre, precio, stock, variant_id, product_id, promotional_price, barcode, imagen_url))
 
             count += 1
 
