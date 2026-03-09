@@ -1,13 +1,14 @@
 # routes/reportes.py
-from flask import Blueprint, send_file
-from models import get_ventas_historial
-import pandas as pd
-from datetime import datetime
 import sqlite3
+from flask import Blueprint, send_file
+from datetime import datetime
+from routes import login_required
+import pandas as pd
 
 reportes_bp = Blueprint('reportes', __name__)
 
 @reportes_bp.route('/reporte/excel')
+@login_required
 def reporte_excel():
     conn = sqlite3.connect('negocio.db')
     mes_actual = datetime.now().strftime('%Y-%m')
@@ -21,8 +22,8 @@ def reporte_excel():
         WHERE strftime('%Y-%m', v.fecha) = ?
         ORDER BY v.fecha
     """, conn, params=(mes_actual,))
+    conn.close()
     hoy = datetime.now().strftime('%d-%m-%Y')
     output_path = f'reporte_ventas_{hoy}.xlsx'
     df.to_excel(output_path, index=False)
-    conn.close()
     return send_file(output_path, as_attachment=True)

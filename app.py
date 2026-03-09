@@ -1,5 +1,7 @@
 # app.py
+import os
 from flask import Flask
+from dotenv import load_dotenv
 from models import init_db
 from routes.auth import auth_bp
 from routes.main import main_bp
@@ -7,23 +9,23 @@ from routes.inventario import inventario_bp
 from routes.ventas import ventas_bp
 from routes.clientes import clientes_bp
 from routes.reportes import reportes_bp
-from routes.ventas_historial import ventas_historial_bp 
+from routes.ventas_historial import ventas_historial_bp
 from routes.tiendanube import tiendanube_bp
 from routes.webhook_tn import wbhook_tn
 
+load_dotenv()
+
 def create_app():
     app = Flask(__name__)
-    app.secret_key = 'clave_secreta_negocio_2025_segura'
-    
-    # === FILTRO JINJA PERSONALIZADO ===
+    app.secret_key = os.getenv("SECRET_KEY", "clave_dev_cambiar_en_produccion")
+
     @app.template_filter('pesos')
     def formato_pesos(valor):
         try:
             return f"{float(valor):,.0f}".replace(',', '.')
         except (ValueError, TypeError):
             return str(valor)
-    
-    # Registrar blueprints
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(inventario_bp)
@@ -32,7 +34,7 @@ def create_app():
     app.register_blueprint(reportes_bp)
     app.register_blueprint(ventas_historial_bp)
     app.register_blueprint(tiendanube_bp)
-    app.register_blueprint(wbhook_tn) 
+    app.register_blueprint(wbhook_tn)
     return app
 
 if __name__ == '__main__':

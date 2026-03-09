@@ -5,21 +5,31 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash
 from services.tiendanube_service import actualizar_stock_tn_service
 
+# Path absoluto a la DB, resuelto desde la ubicación de este archivo
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'negocio.db')
+
+def get_conn():
+    """Abre una conexión con row_factory para acceder a columnas por nombre."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def init_db():
-    conn = sqlite3.connect('negocio.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS productos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-    sku TEXT UNIQUE NOT NULL,
-    descripcion TEXT NOT NULL,
-    precio REAL NOT NULL,
-    stock INTEGER NOT NULL DEFAULT 0,
-
-    variant_id TEXT UNIQUE,
-    product_id TEXT,
-
-    activo INTEGER DEFAULT 1
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sku TEXT UNIQUE NOT NULL,
+        descripcion TEXT NOT NULL,
+        precio REAL NOT NULL,
+        stock INTEGER DEFAULT 0,
+        variant_id TEXT UNIQUE,
+        product_id TEXT,
+        promotional_price REAL,
+        barcode TEXT,
+        imagen_url TEXT,
+        activo INTEGER DEFAULT 1
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +43,8 @@ def init_db():
         cliente_id INTEGER NOT NULL,
         total REAL NOT NULL,
         metodo_pago TEXT,
-        cuotas INTEGER
+        cuotas INTEGER,
+        order_id TEXT UNIQUE
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS detalle_venta (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,55 +58,83 @@ def init_db():
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL
     )''')
+
+    # Migraciones seguras: agregar columnas nuevas si no existen
+    columnas_productos = [r[1] for r in c.execute("PRAGMA table_info(productos)").fetchall()]
+    for col, definition in [
+        ("promotional_price", "REAL"),
+        ("barcode", "TEXT"),
+        ("imagen_url", "TEXT"),
+    ]:
+        if col not in columnas_productos:
+            c.execute(f"ALTER TABLE productos ADD COLUMN {col} {definition}")
+
+    columnas_ventas = [r[1] for r in c.execute("PRAGMA table_info(ventas)").fetchall()]
+    if "order_id" not in columnas_ventas:
+        c.execute("ALTER TABLE ventas ADD COLUMN order_id TEXT UNIQUE")
+
+    # Cliente por defecto
     c.execute("SELECT COUNT(*) FROM clientes")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO clientes (nombre, telefono, cuit) VALUES ('Consumidor Final', '', '')")
+
     conn.commit()
     conn.close()
 
+
 # === Productos ===
+
 def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=20):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     condiciones = []
     params = []
-    
+
     if search:
         condiciones.append("(sku LIKE ? OR descripcion LIKE ?)")
         params.extend([f'%{search}%', f'%{search}%'])
     if stock_filter == 'sin_stock':
         condiciones.append("stock = 0")
-    
+
     where_clause = "WHERE " + " AND ".join(condiciones) if condiciones else ""
-    
+
     order_clause = "ORDER BY id DESC"
-    if orden == 'mayor': order_clause = "ORDER BY precio DESC"
+    if orden == 'mayor':   order_clause = "ORDER BY precio DESC"
     elif orden == 'menor': order_clause = "ORDER BY precio ASC"
     elif orden == 'nuevo': order_clause = "ORDER BY id DESC"
     elif orden == 'viejo': order_clause = "ORDER BY id ASC"
 
     total = conn.execute(f"SELECT COUNT(*) FROM productos {where_clause}", params).fetchone()[0]
     offset = (page - 1) * per_page
-    productos = conn.execute(f"SELECT * FROM productos {where_clause} {order_clause} LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
+    productos = conn.execute(
+        f"SELECT * FROM productos {where_clause} {order_clause} LIMIT ? OFFSET ?",
+        (*params, per_page, offset)
+    ).fetchall()
     conn.close()
     return productos, total
 
 def add_producto(sku, descripcion, precio, stock):
-    conn = sqlite3.connect('negocio.db')
-    conn.execute("INSERT INTO productos (sku, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
-                 (sku, descripcion, precio, stock))
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO productos (sku, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
+        (sku, descripcion, precio, stock)
+    )
     conn.commit()
     conn.close()
 
 def update_producto(producto_id, sku, descripcion, precio, stock):
-    conn = sqlite3.connect('negocio.db')
-    conn.execute("UPDATE productos SET sku = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
-                 (sku, descripcion, precio, stock, producto_id))
+    conn = get_conn()
+    conn.execute(
+        "UPDATE productos SET sku = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
+        (sku, descripcion, precio, stock, producto_id)
+    )
     conn.commit()
     conn.close()
 
 def delete_producto(producto_id):
-    conn = sqlite3.connect('negocio.db')
-    tiene_ventas = conn.execute("SELECT COUNT(*) FROM detalle_venta WHERE producto_id = ?", (producto_id,)).fetchone()[0]
+    conn = get_conn()
+    tiene_ventas = conn.execute(
+        "SELECT COUNT(*) FROM detalle_venta WHERE producto_id = ?", (producto_id,)
+    ).fetchone()[0]
     if tiene_ventas > 0:
         conn.close()
         return False
@@ -105,14 +144,16 @@ def delete_producto(producto_id):
     return True
 
 def get_producto_by_id(producto_id):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     p = conn.execute("SELECT * FROM productos WHERE id = ?", (producto_id,)).fetchone()
     conn.close()
     return p
 
+
 # === Clientes ===
+
 def get_clientes(page=1, per_page=20):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     total = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
     offset = (page - 1) * per_page
     clientes = conn.execute("SELECT * FROM clientes LIMIT ? OFFSET ?", (per_page, offset)).fetchall()
@@ -120,84 +161,70 @@ def get_clientes(page=1, per_page=20):
     return clientes, total
 
 def add_cliente(nombre, cuit=None, telefono=None):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     if cuit:
         existente = conn.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,)).fetchone()
         if existente:
             conn.close()
             return False, "CUIT ya registrado"
-    conn.execute("INSERT INTO clientes (nombre, cuit, telefono) VALUES (?, ?, ?)", (nombre, cuit, telefono))
+    conn.execute(
+        "INSERT INTO clientes (nombre, cuit, telefono) VALUES (?, ?, ?)",
+        (nombre, cuit, telefono)
+    )
     conn.commit()
     conn.close()
     return True, ""
 
 def get_cliente_by_id(cliente_id):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     c = conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
     conn.close()
     return c
 
+
 # === Ventas ===
 
 def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
-    conn = sqlite3.connect('negocio.db')
-
+    conn = get_conn()
     try:
-        # 🔎 Verificar stock
+        # Verificar stock
         for item in carrito:
-            stock_actual = conn.execute(
-                "SELECT stock FROM productos WHERE id = ?",
-                (item['id'],)
+            row = conn.execute(
+                "SELECT stock FROM productos WHERE id = ?", (item['id'],)
             ).fetchone()
-
-            if not stock_actual or stock_actual[0] < item['cantidad']:
+            if not row or (row['stock'] is not None and row['stock'] < item['cantidad']):
                 return False, f"Stock insuficiente para {item['descripcion']}"
 
-        # 🧾 Registrar venta
+        # Registrar venta
         fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         total_venta = sum(item['precio'] * item['cantidad'] for item in carrito)
 
-        conn.execute("""
-            INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) 
-            VALUES (?, ?, ?, ?, ?)
-        """, (fecha, cliente_id, total_venta, metodo_pago, cuotas))
-
+        conn.execute(
+            "INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) VALUES (?, ?, ?, ?, ?)",
+            (fecha, cliente_id, total_venta, metodo_pago, cuotas)
+        )
         venta_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        # 📦 Registrar detalle y actualizar stock
+        # Registrar detalle y descontar stock
         for item in carrito:
-
-            # Insertar detalle
-            conn.execute("""
-                INSERT INTO detalle_venta 
-                (venta_id, producto_id, cantidad, precio_unitario) 
-                VALUES (?, ?, ?, ?)
-            """, (venta_id, item['id'], item['cantidad'], item['precio']))
-
-            # Actualizar stock local
-            conn.execute("""
-                UPDATE productos 
-                SET stock = stock - ? 
-                WHERE id = ?
-            """, (item['cantidad'], item['id']))
+            conn.execute(
+                "INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)",
+                (venta_id, item['id'], item['cantidad'], item['precio'])
+            )
+            conn.execute(
+                "UPDATE productos SET stock = stock - ? WHERE id = ?",
+                (item['cantidad'], item['id'])
+            )
 
         conn.commit()
 
-        # 🔥 IMPORTANTE:
-        # Después del commit, sincronizamos con Tiendanube
+        # Sincronizar stock con Tiendanube (solo productos vinculados)
         for item in carrito:
-
-            variant_row = conn.execute("""
-                SELECT variant_id, stock 
-                FROM productos 
-                WHERE id = ?
-            """, (item['id'],)).fetchone()
-
-            if variant_row and variant_row[0]:
-                variant_id = variant_row[0]
-                stock_actualizado = variant_row[1]
-
-                actualizar_stock_tn_service(variant_id, stock_actualizado)
+            variant_row = conn.execute(
+                "SELECT variant_id, stock FROM productos WHERE id = ?", (item['id'],)
+            ).fetchone()
+            if variant_row and variant_row['variant_id']:
+                actualizar_stock_tn_service(variant_row['variant_id'], variant_row['stock'])
 
         return True, venta_id
 
@@ -206,9 +233,11 @@ def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
         return False, str(e)
 
     finally:
-        conn.close()    
+        conn.close()
+
+
 def get_ventas_historial(page=1, per_page=20, search_id=None):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     if search_id:
         try:
             venta_id = int(search_id)
@@ -236,7 +265,7 @@ def get_ventas_historial(page=1, per_page=20, search_id=None):
     return ventas, total
 
 def get_detalle_venta(venta_id):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     venta = conn.execute("""
         SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas
         FROM ventas v
@@ -252,17 +281,22 @@ def get_detalle_venta(venta_id):
     conn.close()
     return venta, productos
 
+
 # === Dashboard ===
+
 def get_dashboard_data():
-    conn = sqlite3.connect('negocio.db')
-    c = conn.cursor()
-    total_productos = c.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
-    total_clientes = c.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    conn = get_conn()
+    total_productos = conn.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
+    total_clientes  = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
     hoy = datetime.now().strftime('%Y-%m-%d')
-    ventas_hoy = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)).fetchone()
+    ventas_hoy = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)
+    ).fetchone()
     mes_actual = datetime.now().strftime('%Y-%m')
-    ventas_mes = c.execute("SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)).fetchone()
-    ultimas_ventas = c.execute("""
+    ventas_mes = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)
+    ).fetchone()
+    ultimas_ventas = conn.execute("""
         SELECT v.id, v.fecha, c.nombre, v.total
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
@@ -270,11 +304,11 @@ def get_dashboard_data():
     """).fetchall()
     conn.close()
     return {
-        'total_productos': total_productos,
-        'total_clientes': total_clientes,
+        'total_productos':     total_productos,
+        'total_clientes':      total_clientes,
         'cantidad_ventas_hoy': ventas_hoy[0],
-        'total_ventas_hoy': ventas_hoy[1],      # ← ahora es un float
+        'total_ventas_hoy':    ventas_hoy[1],
         'cantidad_ventas_mes': ventas_mes[0],
-        'total_ventas_mes': ventas_mes[1],      # ← ahora es un float
-        'ultimas_ventas': ultimas_ventas
+        'total_ventas_mes':    ventas_mes[1],
+        'ultimas_ventas':      ultimas_ventas,
     }
