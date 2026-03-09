@@ -44,7 +44,7 @@ def init_db():
         total REAL NOT NULL,
         metodo_pago TEXT,
         cuotas INTEGER,
-        order_id TEXT UNIQUE
+        order_id TEXT
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS detalle_venta (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +71,8 @@ def init_db():
 
     columnas_ventas = [r[1] for r in c.execute("PRAGMA table_info(ventas)").fetchall()]
     if "order_id" not in columnas_ventas:
-        c.execute("ALTER TABLE ventas ADD COLUMN order_id TEXT UNIQUE")
+        c.execute("ALTER TABLE ventas ADD COLUMN order_id TEXT")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_order_id ON ventas(order_id)")
 
     # Cliente por defecto
     c.execute("SELECT COUNT(*) FROM clientes")
