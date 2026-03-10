@@ -150,3 +150,37 @@ def actualizar_stock_tn_service(variant_id, nuevo_stock):
     conn.close()
 
     return {"ok": True, "mensaje": "Stock actualizado correctamente"}
+
+
+# ==========================================
+# ACTUALIZAR PRECIO EN TIENDANUBE
+# ==========================================
+
+def actualizar_precio_tn_service(variant_id, product_id, nuevo_precio):
+    url = f"https://api.tiendanube.com/2025-03/{STORE_ID}/products/stock-price"
+
+    headers = {
+        "Authentication": f"bearer {TOKEN}",
+        "User-Agent": "Comenda App (mateopatatian@gmail.com)",
+        "Content-Type": "application/json"
+    }
+
+    data = [
+        {
+            "id": int(product_id),
+            "variants": [
+                {
+                    "id": int(variant_id),
+                    "price": str(nuevo_precio)
+                }
+            ]
+        }
+    ]
+
+    response = requests.patch(url, json=data, headers=headers)
+
+    if response.status_code not in (200, 204):
+        print(f"Error actualizando precio en TN: {response.text}")
+        return {"ok": False, "error": response.text}
+
+    return {"ok": True, "mensaje": "Precio actualizado en TiendaNube"}

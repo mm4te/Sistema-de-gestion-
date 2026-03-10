@@ -129,7 +129,17 @@ def update_producto(producto_id, sku, descripcion, precio, stock):
         (sku, descripcion, precio, stock, producto_id)
     )
     conn.commit()
+
+    # Sincronizar con TiendaNube si el producto está vinculado
+    row = conn.execute(
+        "SELECT variant_id, product_id FROM productos WHERE id = ?", (producto_id,)
+    ).fetchone()
     conn.close()
+
+    if row and row["variant_id"]:
+        from services.tiendanube_service import actualizar_stock_tn_service, actualizar_precio_tn_service
+        actualizar_stock_tn_service(row["variant_id"], stock)
+        actualizar_precio_tn_service(row["variant_id"], row["product_id"], precio)
 
 def delete_producto(producto_id):
     conn = get_conn()
