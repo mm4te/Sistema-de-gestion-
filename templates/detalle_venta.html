@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Venta #{{ venta[0] }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
   <div class="layout">
     <div class="sidebar">
@@ -22,13 +24,13 @@
     <div class="main-content">
       <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-messages">
-              {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <p class="{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         <a href="/ventas_historial" class="back-link">← Volver al historial</a>
@@ -37,12 +39,13 @@
         <div class="card" style="margin: 20px 0;">
           <p><strong>Fecha:</strong> {{ venta[1] }}</p>
           <p><strong>Cliente:</strong> {{ venta[2] }}</p>
-          <p><strong>Total:</strong> ${{ "%.2f"|format(venta[3]) }}</p>
+          <p><strong>Total:</strong> ${{ venta[3]|pesos }}</p>
           <p><strong>Método de pago:</strong>
             {% if venta[4] == 'efectivo' %}💵 Efectivo
             {% elif venta[4] == 'transferencia' %}📲 Transferencia
             {% elif venta[4] == 'tarjeta' %}💳 Tarjeta
-              {% if venta[5] %} ({{ venta[5] }} cuotas){% endif %}
+            {% if venta[5] %} ({{ venta[5] }} cuotas){% endif %}
+            {% elif venta[4] == 'Tienda Nube' %}🛒 Tienda Nube
             {% else %}—
             {% endif %}
           </p>
@@ -50,33 +53,34 @@
 
         <h2>Productos comprados</h2>
         {% if productos %}
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Cantidad</th>
-                  <th>Precio Unitario</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for p in productos %}
-                  <tr>
-                    <td data-label="Producto">{{ p[0] }}</td>
-                    <td data-label="Cantidad">{{ p[1] }}</td>
-                    <td data-label="Precio Unitario">$ {{ "%.2f"|format(p[2]) }}</td>
-                    <td data-label="Subtotal">$ {{ "%.2f"|format(p[1] * p[2]) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio Unitario</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in productos %}
+              <tr>
+                <td data-label="Producto">{{ p[0] }}</td>
+                <td data-label="Cantidad">{{ p[1] }}</td>
+                <td data-label="Precio Unitario">$ {{ "%.2f"|format(p[2]) }}</td>
+                <td data-label="Subtotal">$ {{ "%.2f"|format(p[1] * p[2]) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
         {% else %}
-          <p>No se encontraron productos en esta venta.</p>
+        <p>No se encontraron productos en esta venta.</p>
         {% endif %}
       </main>
     </div>
   </div>
 </body>
+
 </html>
