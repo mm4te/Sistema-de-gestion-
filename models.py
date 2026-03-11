@@ -253,7 +253,7 @@ def get_ventas_historial(page=1, per_page=20, search_id=None):
         try:
             venta_id = int(search_id)
             ventas = conn.execute("""
-                SELECT v.id, v.fecha, c.nombre, v.total
+                SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
                 FROM ventas v
                 JOIN clientes c ON v.cliente_id = c.id
                 WHERE v.id = ?
@@ -266,7 +266,7 @@ def get_ventas_historial(page=1, per_page=20, search_id=None):
         total = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
         offset = (page - 1) * per_page
         ventas = conn.execute("""
-            SELECT v.id, v.fecha, c.nombre, v.total
+            SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
             FROM ventas v
             JOIN clientes c ON v.cliente_id = c.id
             ORDER BY v.fecha DESC

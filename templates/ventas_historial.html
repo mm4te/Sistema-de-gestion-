@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ventas Históricas</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
   <div class="layout">
     <div class="sidebar">
@@ -22,13 +24,13 @@
     <div class="main-content">
       <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-messages">
-              {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <p class="{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         <h1>📈 Historial de Ventas ({{ total }})</h1>
@@ -41,61 +43,68 @@
           </div>
           <button type="submit" style="align-self: end;">Buscar</button>
           {% if search_id %}
-            <a href="{{ url_for('ventas_historial.ventas_historial') }}" style="align-self: end; margin-left: 10px; color: #e63946;">Ver todas</a>
+          <a href="{{ url_for('ventas_historial.ventas_historial') }}"
+            style="align-self: end; margin-left: 10px; color: #e63946;">Ver todas</a>
           {% endif %}
         </form>
 
         {% if ventas %}
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Fecha</th>
-                  <th>Cliente</th>
-                  <th>Total</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for v in ventas %}
-                  <tr>
-                    <td data-label="ID">{{ v[0] }}</td>
-                    <td data-label="Fecha">{{ v[1] }}</td>
-                    <td data-label="Cliente">{{ v[2] }}</td>
-                    <td data-label="Total">$ {{ "%.2f"|format(v[3]) }}</td>
-                    <td data-label="Acciones">
-                      <a href="/venta/{{ v[0] }}" style="color: #4361ee;">🔍 Ver detalle</a>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Paginación (solo si no es búsqueda) -->
-          {% if not search_id and total_pages > 1 %}
-            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
-              {% if page > 1 %}
-                <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1) }}" class="pagination-link">« Anterior</a>
-              {% endif %}
-              {% for p in range(1, total_pages+1) %}
-                {% if p == page %}
-                  <span style="background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
-                {% else %}
-                  <a href="{{ url_for('ventas_historial.ventas_historial', page=p) }}" class="pagination-link">{{ p }}</a>
-                {% endif %}
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in ventas %}
+              <tr>
+                <td data-label="ID">
+                  {% if v[4] == 'Tienda Nube' %}🛒 #{{ v[6] }}{% else %}#{{ v[0] }}{% endif %}
+                </td>
+                <td data-label="Fecha">{{ v[1] }}</td>
+                <td data-label="Cliente">{{ v[2] }}</td>
+                <td data-label="Total">$ {{ v[3]|pesos }}</td>
+                <td data-label="Acciones">
+                  <a href="/venta/{{ v[0] }}" style="color: #4361ee;">🔍 Ver detalle</a>
+                </td>
+              </tr>
               {% endfor %}
-              {% if page < total_pages %}
-                <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1) }}" class="pagination-link">Siguiente »</a>
-              {% endif %}
-            </div>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación (solo si no es búsqueda) -->
+        {% if not search_id and total_pages > 1 %}
+        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+          {% if page > 1 %}
+          <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1) }}" class="pagination-link">«
+            Anterior</a>
           {% endif %}
+          {% for p in range(1, total_pages+1) %}
+          {% if p == page %}
+          <span
+            style="background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;">{{
+            p }}</span>
+          {% else %}
+          <a href="{{ url_for('ventas_historial.ventas_historial', page=p) }}" class="pagination-link">{{ p }}</a>
+          {% endif %}
+          {% endfor %}
+          {% if page < total_pages %} <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1) }}"
+            class="pagination-link">Siguiente »</a>
+            {% endif %}
+        </div>
+        {% endif %}
         {% else %}
-          <p>No se encontraron ventas.</p>
+        <p>No se encontraron ventas.</p>
         {% endif %}
       </main>
     </div>
   </div>
 </body>
+
 </html>
