@@ -1,10 +1,9 @@
-<!-- editar cliente -->
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nuevo Cliente</title>
+  <title>Editar Cliente</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -31,18 +30,32 @@
           </div>
         {% endif %}
       {% endwith %}
-<!-- The method is not allowed for the requested URL. -->
-        <form method="post">
-            <label for="nombre">Nombre *</label>
-            <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez" value="{{ cliente[1] }}">
-    
-            <label for="cuit">CUIT</label>
-            <input type="text" id="cuit" name="cuit" placeholder="Ej: 30-XXXXXXXX-X " value="{{ cliente[3] }}">
-    
-            <label for="telefono">Teléfono (opcional)</label>
-            <input type="text" id="telefono" name="telefono" placeholder="Ej: +54 9 11 1234-5678" value="{{ cliente[2] }}">
-    
-            <button type="submit">✅ Guardar Cambios</button>
-        </form>
+
+      <form method="post">
+        <label for="nombre">Nombre *</label>
+        <input type="text" id="nombre" name="nombre" required value="{{ cliente['nombre'] }}">
+
+        <label for="tipo">Tipo de cliente *</label>
+        <select id="tipo" name="tipo" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
+          <option value="0" {{ 'selected' if cliente['tipo'] == 0 else '' }}>🛍️ Minorista</option>
+          <option value="1" {{ 'selected' if cliente['tipo'] == 1 else '' }}>🏭 Mayorista</option>
+        </select>
+
+        <label for="dni">DNI</label>
+        <input type="text" id="dni" name="dni" value="{{ cliente['dni'] or '' }}">
+
+        <label for="telefono">Teléfono</label>
+        <input type="text" id="telefono" name="telefono" value="{{ cliente['telefono'] or '' }}">
+
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" value="{{ cliente['email'] or '' }}">
+
+        <label for="cuit">CUIT</label>
+        <input type="text" id="cuit" name="cuit" value="{{ cliente['cuit'] or '' }}">
+
+        <button type="submit">💾 Guardar Cambios</button>
+      </form>
     </main>
   </div>
+</body>
+</html>

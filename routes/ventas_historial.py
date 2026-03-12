@@ -1,9 +1,14 @@
 # routes/ventas_historial.py
+import os
 import sqlite3
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from models import get_conn
 from routes import login_required
 
 ventas_historial_bp = Blueprint('ventas_historial', __name__)
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH  = os.path.join(BASE_DIR, 'negocio.db')
 
 @ventas_historial_bp.route('/ventas_historial')
 @login_required
@@ -11,12 +16,12 @@ def ventas_historial():
     page      = request.args.get('page', 1, type=int)
     search_id = request.args.get('id', '').strip()
     per_page  = 20
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     if search_id:
         try:
             venta_id = int(search_id)
             ventas = conn.execute("""
-                SELECT v.id, v.fecha, c.nombre, v.total
+                SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
                 FROM ventas v JOIN clientes c ON v.cliente_id = c.id
                 WHERE v.id = ? ORDER BY v.fecha DESC
             """, (venta_id,)).fetchall()
@@ -30,7 +35,7 @@ def ventas_historial():
         total  = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
         offset = (page - 1) * per_page
         ventas = conn.execute("""
-            SELECT v.id, v.fecha, c.nombre, v.total
+            SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
             FROM ventas v JOIN clientes c ON v.cliente_id = c.id
             ORDER BY v.fecha DESC LIMIT ? OFFSET ?
         """, (per_page, offset)).fetchall()
@@ -42,9 +47,9 @@ def ventas_historial():
 @ventas_historial_bp.route('/venta/<int:venta_id>')
 @login_required
 def detalle_venta(venta_id):
-    conn  = sqlite3.connect('negocio.db')
+    conn  = get_conn()
     venta = conn.execute("""
-        SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas
+        SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
         FROM ventas v JOIN clientes c ON v.cliente_id = c.id
         WHERE v.id = ?
     """, (venta_id,)).fetchone()

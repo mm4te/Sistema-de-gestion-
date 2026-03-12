@@ -35,7 +35,10 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         cuit TEXT,
-        telefono TEXT
+        telefono TEXT,
+        dni TEXT,
+        email TEXT,
+        tipo INTEGER DEFAULT 0
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS ventas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +76,14 @@ def init_db():
     if "order_id" not in columnas_ventas:
         c.execute("ALTER TABLE ventas ADD COLUMN order_id TEXT")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_order_id ON ventas(order_id)")
-
+    columnas_clientes = [r[1] for r in c.execute("PRAGMA table_info(clientes)").fetchall()]
+    for col, definition in [
+        ("dni",   "TEXT"),
+        ("email", "TEXT"),
+        ("tipo",  "INTEGER DEFAULT 0"),
+    ]:
+        if col not in columnas_clientes:
+            c.execute(f"ALTER TABLE clientes ADD COLUMN {col} {definition}")
     # Cliente por defecto
     c.execute("SELECT COUNT(*) FROM clientes")
     if c.fetchone()[0] == 0:
@@ -171,7 +181,7 @@ def get_clientes(page=1, per_page=20):
     conn.close()
     return clientes, total
 
-def add_cliente(nombre, cuit=None, telefono=None):
+def add_cliente(nombre, cuit=None, telefono=None, dni=None, email=None, tipo=0):
     conn = get_conn()
     if cuit:
         existente = conn.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,)).fetchone()
@@ -179,8 +189,8 @@ def add_cliente(nombre, cuit=None, telefono=None):
             conn.close()
             return False, "CUIT ya registrado"
     conn.execute(
-        "INSERT INTO clientes (nombre, cuit, telefono) VALUES (?, ?, ?)",
-        (nombre, cuit, telefono)
+        "INSERT INTO clientes (nombre, cuit, telefono, dni, email, tipo) VALUES (?, ?, ?, ?, ?, ?)",
+        (nombre, cuit, telefono, dni, email, tipo)
     )
     conn.commit()
     conn.close()
@@ -253,7 +263,7 @@ def get_ventas_historial(page=1, per_page=20, search_id=None):
         try:
             venta_id = int(search_id)
             ventas = conn.execute("""
-                SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
+                SELECT v.id, v.fecha, c.nombre, v.total
                 FROM ventas v
                 JOIN clientes c ON v.cliente_id = c.id
                 WHERE v.id = ?
@@ -266,7 +276,7 @@ def get_ventas_historial(page=1, per_page=20, search_id=None):
         total = conn.execute("SELECT COUNT(*) FROM ventas").fetchone()[0]
         offset = (page - 1) * per_page
         ventas = conn.execute("""
-            SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id
+            SELECT v.id, v.fecha, c.nombre, v.total
             FROM ventas v
             JOIN clientes c ON v.cliente_id = c.id
             ORDER BY v.fecha DESC

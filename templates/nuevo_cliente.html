@@ -1,4 +1,3 @@
-<!-- Similar a nuevo_producto.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -36,11 +35,23 @@
         <label for="nombre">Nombre *</label>
         <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez">
 
-        <label for="cuit">CUIT</label>
-        <input type="text" id="cuit" name="cuit" placeholder="Ej: 30-XXXXXXXX-X ">
+        <label for="tipo">Tipo de cliente *</label>
+        <select id="tipo" name="tipo" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
+          <option value="0">🛍️ Minorista</option>
+          <option value="1">🏭 Mayorista</option>
+        </select>
 
-        <label for="telefono">Teléfono (opcional)</label>
+        <label for="dni">DNI</label>
+        <input type="text" id="dni" name="dni" placeholder="Ej: 12345678">
+
+        <label for="telefono">Teléfono</label>
         <input type="text" id="telefono" name="telefono" placeholder="Ej: +54 9 11 1234-5678">
+
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="Ej: juan@email.com">
+
+        <label for="cuit">CUIT</label>
+        <input type="text" id="cuit" name="cuit" placeholder="Ej: 30-XXXXXXXX-X">
 
         <button type="submit">✅ Guardar Cliente</button>
       </form>

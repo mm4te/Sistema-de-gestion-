@@ -64,13 +64,13 @@
               {% for v in ventas %}
               <tr>
                 <td data-label="ID">
-                  {% if v[4] == 'Tienda Nube' %}🛒 #{{ v[6] }}{% else %}#{{ v[0] }}{% endif %}
+                  {% if v['metodo_pago'] == 'Tienda Nube' %}🛒 {{ v['order_id'] }}{% else %}{{ v['id'] }}{% endif %}
                 </td>
-                <td data-label="Fecha">{{ v[1] }}</td>
-                <td data-label="Cliente">{{ v[2] }}</td>
-                <td data-label="Total">$ {{ v[3]|pesos }}</td>
+                <td data-label="Fecha">{{ v['fecha'] }}</td>
+                <td data-label="Cliente">{{ v['nombre'] }}</td>
+                <td data-label="Total">$ {{ v['total']|pesos }}</td>
                 <td data-label="Acciones">
-                  <a href="/venta/{{ v[0] }}" style="color: #4361ee;">🔍 Ver detalle</a>
+                  <a href="/venta/{{ v['id'] }}" style="color: #4361ee;">🔍 Ver detalle</a>
                 </td>
               </tr>
               {% endfor %}
