@@ -2,3 +2,7 @@
 *.db
 uploads/
 __pycache__/
+crear_usuario.py
+generar_ejemplo.py
+limpiar_db.py
+registrar_webhook.py
