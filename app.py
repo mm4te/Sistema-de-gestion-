@@ -13,6 +13,13 @@ from routes.ventas_historial import ventas_historial_bp
 from routes.tiendanube import tiendanube_bp
 from routes.webhook_tn import wbhook_tn
 
+# Flask
+SECRET_KEY=cambia_esto_por_una_clave_segura_y_larga
+
+# Tienda Nube
+TN_ACCESS_TOKEN=c2883f94ba3987c74d5246e716d89b40d35bdf30
+TN_STORE_ID=7324186
+
 load_dotenv()
 
 def create_app():
