@@ -274,16 +274,101 @@ table th {
 .sidebar a {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
+  gap: 10px;
+  padding: 9px 20px;
   text-decoration: none;
-  color: var(--gray);
-  transition: all 0.2s;
+  color: #374151;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
 }
 
-.sidebar a:hover, .sidebar a.active {
-  background: var(--primary);
-  color: white;
+.sidebar a:hover {
+  color: var(--primary);
+  background: rgba(67, 97, 238, 0.06);
 }
+
+.sidebar a.active {
+  color: var(--primary);
+  font-weight: 600;
+  background: rgba(67, 97, 238, 0.06);
+}
+
+.sidebar a.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Nav section labels (static) */
+.nav-section-label {
+  padding: 20px 20px 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #9CA3AF;
+  user-select: none;
+}
+
+/* Collapsible nav groups */
+.sidebar details > summary {
+  display: flex;
+  align-items: center;
+  padding: 20px 20px 4px;
+  cursor: pointer;
+  color: #9CA3AF;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  list-style: none;
+  user-select: none;
+}
+.sidebar details > summary::-webkit-details-marker { display: none; }
+.sidebar details > summary::marker { display: none; }
+.sidebar details > summary::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.sidebar details[open] > summary { color: var(--primary); }
+.sidebar details[open] > summary::after { transform: rotate(-135deg); }
+.sidebar details > a { padding-left: 28px; }
+
+/* Bootstrap Icons sizing */
+.sidebar .bi {
+  font-size: 1rem;
+  width: 1rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* Divider before cerrar sesión */
+.sidebar hr.nav-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 20px;
+}
+
+/* Cerrar sesión */
+.sidebar a.nav-logout { color: #EF4444; }
+.sidebar a.nav-logout:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.06);
+}
+.sidebar a.nav-logout::before { display: none; }
 
 .main-content {
   flex: 1;
