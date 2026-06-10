@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}{{ r.numero }}{% endblock %}
+
+{% block content %}
+<!-- Cabecera -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+  <div>
+    <h2 style="margin-bottom:4px;">{{ r.numero }}</h2>
+    <span class="badge badge-{{ r.estado }}" style="font-size:.9em;">{{ r.estado | replace('_',' ') }}</span>
+  </div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    {% if r.estado == 'pendiente' %}
+    <a href="{{ url_for('remitos.editar', remito_id=r.id) }}" class="btn-secondary">✏️ Editar</a>
+    {% endif %}
+    <a href="{{ url_for('remitos.pdf', remito_id=r.id) }}" class="btn-secondary">📄 PDF</a>
+    {% if transiciones %}
+    <button type="button" onclick="document.getElementById('modal-estado').classList.add('active')"
+            class="btn-primary" style="width:auto; padding:8px 18px;">Cambiar estado</button>
+    {% endif %}
+    <a href="{{ url_for('remitos.lista') }}" class="btn-secondary">← Volver</a>
+  </div>
+</div>
+
+<!-- Info principal -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:28px;">
+  <div class="card">
+    <h3 style="font-size:1rem; margin-bottom:12px; color:var(--gray);">DATOS DE ENVÍO</h3>
+    <p><strong>Destinatario:</strong> {{ r.destinatario }}</p>
+    <p style="margin-top:8px;"><strong>Dirección:</strong> {{ r.direccion }}</p>
+    {% if r.cliente_nombre %}
+    <p style="margin-top:8px;"><strong>Cliente:</strong> {{ r.cliente_nombre }}</p>
+    {% endif %}
+    {% if r.bultos %}
+    <p style="margin-top:8px;"><strong>Bultos:</strong> {{ r.bultos }}</p>
+    {% endif %}
+    {% if r.peso %}
+    <p style="margin-top:8px;"><strong>Peso:</strong> {{ r.peso }} kg</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3 style="font-size:1rem; margin-bottom:12px; color:var(--gray);">FECHAS</h3>
+    <p><strong>Creación:</strong> {{ r.fecha[:10] }}</p>
+    {% if r.fecha_entrega_estimada %}
+    <p style="margin-top:8px;"><strong>Entrega estimada:</strong> {{ r.fecha_entrega_estimada }}</p>
+    {% endif %}
+    {% if r.fecha_entrega_real %}
+    <p style="margin-top:8px;"><strong>Entrega real:</strong> {{ r.fecha_entrega_real }}</p>
+    {% endif %}
+    {% if r.recibido_por %}
+    <p style="margin-top:8px;"><strong>Recibido por:</strong> {{ r.recibido_por }}</p>
+    {% endif %}
+    {% if r.presupuesto_id %}
+    <p style="margin-top:8px;"><strong>Presupuesto:</strong>
+      <a href="{{ url_for('presupuestos.detalle', presupuesto_id=r.presupuesto_id) }}" style="color:var(--primary);">Ver presupuesto</a>
+    </p>
+    {% endif %}
+    {% if r.venta_id %}
+    <p style="margin-top:8px;"><strong>Venta:</strong>
+      <a href="{{ url_for('ventas_historial.detalle_venta', venta_id=r.venta_id) }}" style="color:var(--primary);">Ver venta #{{ r.venta_id }}</a>
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% if r.observaciones %}
+<div class="card" style="margin-bottom:24px;">
+  <strong>Observaciones:</strong>
+  <p style="margin-top:8px; white-space:pre-wrap;">{{ r.observaciones }}</p>
+</div>
+{% endif %}
+
+<!-- Ítems -->
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="font-size:1rem; margin-bottom:14px; color:var(--gray);">ÍTEMS</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Descripción</th>
+        <th style="width:120px; text-align:right;">Cantidad</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.descripcion }}</td>
+        <td style="text-align:right;">{{ it.cantidad | int if it.cantidad == it.cantidad | int else it.cantidad }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Eliminar (solo pendiente) -->
+{% if r.estado == 'pendiente' %}
+<div style="border-top:1px solid var(--border); padding-top:20px; margin-top:8px;">
+  <button type="button" onclick="document.getElementById('modal-eliminar').classList.add('active')"
+          style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:600;">
+    🗑️ Eliminar remito
+  </button>
+</div>
+{% endif %}
+
+
+<!-- ══ Modal: cambiar estado ══════════════════════════════════════════════ -->
+<div id="modal-estado" class="modal-overlay">
+  <div class="modal-box">
+    <h3>Cambiar estado</h3>
+    <form method="post" action="{{ url_for('remitos.cambiar_estado_route', remito_id=r.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Nuevo estado</label>
+      <select name="estado" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:14px;">
+        {% for t in transiciones %}
+        <option value="{{ t }}">{{ t | replace('_',' ') | title }}</option>
+        {% endfor %}
+      </select>
+      <label>Recibido por (opcional, para "entregado")</label>
+      <input type="text" name="recibido_por" placeholder="Nombre de quien firma/recibe">
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button type="submit" class="btn-primary" style="width:auto; padding:8px 24px;">Confirmar</button>
+        <button type="button" onclick="document.getElementById('modal-estado').classList.remove('active')"
+                class="btn-secondary" style="width:auto; padding:8px 20px;">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ Modal: confirmar eliminar ═════════════════════════════════════════ -->
+<div id="modal-eliminar" class="modal-overlay">
+  <div class="modal-box">
+    <h3>Eliminar remito</h3>
+    <p style="margin-bottom:16px;">¿Estás seguro de que querés eliminar el remito <strong>{{ r.numero }}</strong>? Esta acción no se puede deshacer.</p>
+    <form method="post" action="{{ url_for('remitos.eliminar', remito_id=r.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:flex; gap:10px;">
+        <button type="submit"
+                style="background:var(--danger); color:white; padding:8px 24px; border:none; border-radius:8px; cursor:pointer; font-weight:600; width:auto;">
+          Sí, eliminar
+        </button>
+        <button type="button" onclick="document.getElementById('modal-eliminar').classList.remove('active')"
+                class="btn-secondary" style="width:auto; padding:8px 20px;">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cerrar modales al click fuera
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+</script>
+{% endblock %}

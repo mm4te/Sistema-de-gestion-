@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% block title %}Presupuesto {{ p['numero'] }}{% endblock %}
+
+{% block content %}
+<!-- Cabecera -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+  <div>
+    <h1>📋 {{ p['numero'] }}</h1>
+    <span class="badge badge-{{ p['estado'] }}" style="font-size:.95rem; margin-top:6px; display:inline-block;">
+      {{ p['estado'] }}
+    </span>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('presupuestos.pdf', presupuesto_id=p['id']) }}"
+       class="btn-secondary">📄 Descargar PDF</a>
+    {% if p['estado'] == 'borrador' %}
+    <a href="{{ url_for('presupuestos.editar', presupuesto_id=p['id']) }}"
+       class="btn-primary">✏️ Editar</a>
+    {% endif %}
+    {% if transiciones %}
+    <button onclick="document.getElementById('modal-estado').classList.add('active')"
+            style="background:#f78221;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">
+      🔄 Cambiar estado
+    </button>
+    {% endif %}
+    {% if p['estado'] in ('borrador','enviado','aprobado') %}
+    <button onclick="document.getElementById('modal-venta').classList.add('active')"
+            style="background:#2ecc71;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">
+      💰 Convertir a Venta
+    </button>
+    {% endif %}
+    <a href="{{ url_for('remitos.nuevo', desde_presupuesto=p['id']) }}"
+       style="background:#17a2b8;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
+      🚚 Crear Remito
+    </a>
+    {% if p['estado'] == 'borrador' %}
+    <form method="post" action="{{ url_for('presupuestos.eliminar', presupuesto_id=p['id']) }}"
+          onsubmit="return confirm('¿Eliminar este presupuesto?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              style="background:#e63946;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">
+        🗑️ Eliminar
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Datos generales -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:24px;">
+  <div class="card">
+    <p style="color:var(--gray); font-size:.85rem; margin-bottom:4px;">Cliente</p>
+    <p style="font-weight:600;">{{ p['cliente_nombre'] }}</p>
+    {% if p['cuit'] %}<p style="font-size:.9rem; color:var(--gray);">CUIT: {{ p['cuit'] }}</p>{% endif %}
+    {% if p['telefono'] %}<p style="font-size:.9rem; color:var(--gray);">Tel: {{ p['telefono'] }}</p>{% endif %}
+  </div>
+  <div class="card">
+    <p style="color:var(--gray); font-size:.85rem; margin-bottom:4px;">Fechas</p>
+    <p><strong>Emitido:</strong> {{ p['fecha'][:10] }}</p>
+    <p><strong>Válido hasta:</strong> {{ p['fecha_validez'] }}</p>
+  </div>
+  <div class="card">
+    <p style="color:var(--gray); font-size:.85rem; margin-bottom:4px;">Total</p>
+    <p style="font-size:1.8rem; font-weight:bold; color:var(--primary);">$ {{ p['total'] | pesos }}</p>
+  </div>
+</div>
+
+{% if p['observaciones'] %}
+<div class="card" style="margin-bottom:24px;">
+  <p style="color:var(--gray); font-size:.85rem; margin-bottom:6px;">Observaciones</p>
+  <p>{{ p['observaciones'] }}</p>
+</div>
+{% endif %}
+
+<!-- Tabla de ítems -->
+<h3 style="margin-bottom:12px;">📦 Ítems</h3>
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Descripción</th>
+        <th>Cantidad</th>
+        <th>Precio unit.</th>
+        <th>Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td data-label="#">{{ loop.index }}</td>
+        <td data-label="Descripción">
+          {{ it['descripcion'] }}
+          {% if it['sku'] %}<br><small style="color:var(--gray);">SKU: {{ it['sku'] }}</small>{% endif %}
+        </td>
+        <td data-label="Cantidad">{{ it['cantidad']|int }}</td>
+        <td data-label="Precio unit.">$ {{ it['precio_unitario'] | pesos }}</td>
+        <td data-label="Subtotal" style="font-weight:600;">$ {{ it['subtotal'] | pesos }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:#f1f3f9;">
+        <td colspan="4" style="text-align:right; font-weight:700; padding:14px;">TOTAL</td>
+        <td style="font-weight:700; font-size:1.1rem; padding:14px;">$ {{ p['total'] | pesos }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- Historial de estados -->
+{% if historial %}
+<h3 style="margin-top:32px; margin-bottom:12px;">🕐 Historial de estados</h3>
+<div style="border-left:3px solid var(--border); padding-left:20px;">
+  {% for h in historial %}
+  <div style="margin-bottom:16px; position:relative;">
+    <div style="width:12px; height:12px; background:var(--primary); border-radius:50%;
+                position:absolute; left:-27px; top:4px;"></div>
+    <p style="font-size:.85rem; color:var(--gray);">{{ h['fecha'][:16] }}
+      {% if h['username'] %} · {{ h['username'] }}{% endif %}
+    </p>
+    <p>
+      {% if h['estado_anterior'] %}
+      <span class="badge badge-{{ h['estado_anterior'] }}">{{ h['estado_anterior'] }}</span>
+      <span style="color:var(--gray);">→</span>
+      {% endif %}
+      <span class="badge badge-{{ h['estado_nuevo'] }}">{{ h['estado_nuevo'] }}</span>
+    </p>
+    {% if h['nota'] %}<p style="font-size:.9rem; color:var(--gray); margin-top:4px;">{{ h['nota'] }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div style="margin-top:24px;">
+  <a href="{{ url_for('presupuestos.lista') }}" class="back-link">← Volver a presupuestos</a>
+</div>
+
+<!-- ── Modal: Cambiar estado ─────────────────────────────────────────────── -->
+<div id="modal-estado" class="modal-overlay">
+  <div class="modal-box">
+    <h3 style="margin-bottom:16px;">🔄 Cambiar estado</h3>
+    <form method="post" action="{{ url_for('presupuestos.cambiar_estado_route', presupuesto_id=p['id']) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="estado">Nuevo estado</label>
+      <select id="estado" name="estado" required>
+        {% for t in transiciones %}
+        <option value="{{ t }}">{{ t|capitalize }}</option>
+        {% endfor %}
+      </select>
+      <label for="nota">Nota (opcional)</label>
+      <input type="text" id="nota" name="nota" placeholder="Motivo del cambio...">
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit">✅ Confirmar</button>
+        <button type="button" onclick="document.getElementById('modal-estado').classList.remove('active')"
+                style="background:var(--gray);">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Modal: Convertir a venta ──────────────────────────────────────────── -->
+<div id="modal-venta" class="modal-overlay">
+  <div class="modal-box">
+    <h3 style="margin-bottom:4px;">💰 Convertir a Venta</h3>
+    <p style="color:var(--gray); font-size:.9rem; margin-bottom:16px;">
+      Total: <strong>$ {{ p['total'] | pesos }}</strong>
+    </p>
+    <form method="post" action="{{ url_for('presupuestos.convertir_venta', presupuesto_id=p['id']) }}"
+          id="form-venta">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label>Método de pago</label>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+        {% for m, label in [('efectivo','💵 Efectivo'),('transferencia','📲 Transferencia'),('tarjeta','💳 Tarjeta')] %}
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer;">
+          <input type="radio" name="metodo_pago" value="{{ m }}" required
+                 {% if loop.first %}checked{% endif %}
+                 onchange="document.getElementById('cuotas-sec').style.display = this.value==='tarjeta'?'block':'none'">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div id="cuotas-sec" style="display:none; margin-bottom:16px;">
+        <label>Cuotas</label>
+        <div style="display:flex; gap:12px;">
+          {% for c in [2,3,6] %}
+          <label style="font-weight:normal; cursor:pointer;">
+            <input type="radio" name="cuotas" value="{{ c }}"> {{ c }} cuotas
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit">✅ Confirmar Venta</button>
+        <button type="button" onclick="document.getElementById('modal-venta').classList.remove('active')"
+                style="background:var(--gray);">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cerrar modales al hacer click fuera
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+
+// Validación cuotas en modal venta
+document.getElementById('form-venta').addEventListener('submit', e => {
+  const metodo = document.querySelector('input[name="metodo_pago"]:checked');
+  if (metodo && metodo.value === 'tarjeta') {
+    if (!document.querySelector('input[name="cuotas"]:checked')) {
+      e.preventDefault();
+      alert('Seleccioná una opción de cuotas.');
+    }
+  }
+});
+</script>
+{% endblock %}

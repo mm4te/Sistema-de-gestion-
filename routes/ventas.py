@@ -1,10 +1,10 @@
 # routes/ventas.py
-import sqlite3
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from models import get_producto_by_id, registrar_venta
+from models import get_producto_by_id, registrar_venta, get_conn
 from routes import login_required
 
 ventas_bp = Blueprint('ventas', __name__)
+
 
 @ventas_bp.route('/guardar_cliente', methods=['POST'])
 @login_required
@@ -14,26 +14,29 @@ def guardar_cliente():
         session['cliente_id_seleccionado'] = int(cliente_id)
     return redirect(url_for('ventas.ventas'))
 
+
 @ventas_bp.route('/ventas')
 @login_required
 def ventas():
     cliente_id = session.get('cliente_id_seleccionado')
-    conn = sqlite3.connect('negocio.db')
-    clientes  = conn.execute("SELECT id, nombre FROM clientes").fetchall()
+    conn = get_conn()
+    clientes = conn.execute("SELECT id, nombre FROM clientes").fetchall()
     productos = conn.execute(
-        "SELECT id, sku, descripcion, precio, stock FROM productos WHERE stock > 0 OR stock IS NULL"
+        "SELECT id, sku, descripcion, precio, stock FROM productos"
+        " WHERE (stock > 0 OR stock IS NULL) AND activo = 1"
     ).fetchall()
     conn.close()
     carrito = session.get('carrito', [])
-    total   = sum(item['precio'] * item['cantidad'] for item in carrito)
+    total = sum(item['precio'] * item['cantidad'] for item in carrito)
     return render_template('ventas.html', clientes=clientes, productos=productos,
                            carrito=carrito, total=total,
                            cliente_id_seleccionado=cliente_id)
 
+
 @ventas_bp.route('/cliente/<int:cliente_id>')
 @login_required
 def historial_cliente(cliente_id):
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     cliente = conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
     if not cliente:
         flash("Cliente no encontrado", "error")
@@ -50,16 +53,22 @@ def historial_cliente(cliente_id):
             FROM detalle_venta dv
             JOIN productos p ON dv.producto_id = p.id
             WHERE dv.venta_id = ?
-        """, (venta[0],)).fetchall()
-        ventas_detalle.append({'id': venta[0], 'fecha': venta[1], 'total': venta[2], 'detalle': detalle})
+        """, (venta['id'],)).fetchall()
+        ventas_detalle.append({
+            'id': venta['id'],
+            'fecha': venta['fecha'],
+            'total': venta['total'],
+            'detalle': detalle
+        })
     conn.close()
     return render_template('historial_cliente.html', cliente=cliente, ventas=ventas_detalle)
+
 
 @ventas_bp.route('/agregar_al_carrito', methods=['POST'])
 @login_required
 def agregar_al_carrito():
     producto_id = request.form.get('producto_id')
-    cantidad    = int(request.form.get('cantidad', 1))
+    cantidad = int(request.form.get('cantidad', 1))
     if not producto_id or cantidad <= 0:
         flash("❌ Cantidad o producto inválido", "error")
         return redirect(url_for('ventas.ventas'))
@@ -67,7 +76,6 @@ def agregar_al_carrito():
     if not p:
         flash("❌ Producto no encontrado", "error")
         return redirect(url_for('ventas.ventas'))
-    # Acceso por nombre de columna gracias a sqlite3.Row
     stock = p['stock']
     if stock is not None and cantidad > stock:
         flash(f"❌ Stock insuficiente. Disponible: {stock}", "error")
@@ -95,10 +103,11 @@ def agregar_al_carrito():
     flash(f"✅ {p['descripcion']} agregado al carrito", "success")
     return redirect(url_for('ventas.ventas'))
 
+
 @ventas_bp.route('/actualizar_precio_carrito', methods=['POST'])
 @login_required
 def actualizar_precio_carrito():
-    index        = int(request.form.get('index'))
+    index = int(request.form.get('index'))
     nuevo_precio = float(request.form.get('nuevo_precio'))
     carrito = session.get('carrito', [])
     if 0 <= index < len(carrito) and nuevo_precio > 0:
@@ -109,17 +118,18 @@ def actualizar_precio_carrito():
         flash("❌ Error al actualizar el precio", "error")
     return redirect(url_for('ventas.ventas'))
 
+
 @ventas_bp.route('/actualizar_carrito', methods=['POST'])
 @login_required
 def actualizar_carrito():
-    index          = int(request.form.get('index'))
+    index = int(request.form.get('index'))
     nueva_cantidad = int(request.form.get('cantidad'))
     carrito = session.get('carrito', [])
     if not (0 <= index < len(carrito)) or nueva_cantidad <= 0:
         flash("❌ Datos inválidos", "error")
         return redirect(url_for('ventas.ventas'))
-    item  = carrito[index]
-    p     = get_producto_by_id(item['id'])
+    item = carrito[index]
+    p = get_producto_by_id(item['id'])
     stock = p['stock'] if p else 0
     if not p or (stock is not None and nueva_cantidad > stock):
         flash(f"❌ Stock insuficiente. Disponible: {stock}", "error")
@@ -129,7 +139,8 @@ def actualizar_carrito():
     flash("✅ Cantidad actualizada", "success")
     return redirect(url_for('ventas.ventas'))
 
-@ventas_bp.route('/eliminar_del_carrito/<int:index>')
+
+@ventas_bp.route('/eliminar_del_carrito/<int:index>', methods=['POST'])
 @login_required
 def eliminar_del_carrito(index):
     carrito = session.get('carrito', [])
@@ -138,16 +149,18 @@ def eliminar_del_carrito(index):
         session['carrito'] = carrito
     return redirect(url_for('ventas.ventas'))
 
-@ventas_bp.route('/vaciar_carrito')
+
+@ventas_bp.route('/vaciar_carrito', methods=['POST'])
 @login_required
 def vaciar_carrito():
     session.pop('carrito', None)
     return redirect(url_for('ventas.ventas'))
 
+
 @ventas_bp.route('/seleccionar_pago', methods=['GET', 'POST'])
 @login_required
 def seleccionar_pago():
-    carrito    = session.get('carrito', [])
+    carrito = session.get('carrito', [])
     cliente_id = session.get('cliente_id_seleccionado')
     if not carrito or not cliente_id:
         flash("❌ Carrito vacío o cliente no seleccionado", "error")
@@ -167,13 +180,14 @@ def seleccionar_pago():
     total = sum(item['precio'] * item['cantidad'] for item in carrito)
     return render_template('seleccionar_pago.html', total=total)
 
+
 @ventas_bp.route('/confirmar_venta', methods=['POST'])
 @login_required
 def confirmar_venta():
     metodo_pago = request.form.get('metodo_pago')
-    cuotas      = request.form.get('cuotas', type=int)
-    carrito     = session.get('carrito', [])
-    cliente_id  = session.get('cliente_id_seleccionado')
+    cuotas = request.form.get('cuotas', type=int)
+    carrito = session.get('carrito', [])
+    cliente_id = session.get('cliente_id_seleccionado')
     if not carrito or not cliente_id or not metodo_pago:
         flash("❌ Datos incompletos", "error")
         return redirect(url_for('ventas.ventas'))

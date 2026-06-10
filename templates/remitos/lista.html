@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Remitos{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h2>Remitos de Envío</h2>
+  <a href="{{ url_for('remitos.nuevo') }}" class="btn-primary">+ Nuevo Remito</a>
+</div>
+
+<!-- Filtro de estado -->
+<div style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;">
+  <a href="{{ url_for('remitos.lista') }}"
+     style="padding:6px 16px; border-radius:20px; text-decoration:none; font-size:.85em; font-weight:600;
+            {% if not estado_filtro %}background:var(--primary);color:white;{% else %}background:#e9ecef;color:#495057;{% endif %}">
+    Todos
+  </a>
+  {% for est in estados %}
+  <a href="{{ url_for('remitos.lista', estado=est) }}"
+     style="padding:6px 16px; border-radius:20px; text-decoration:none; font-size:.85em; font-weight:600;
+            {% if estado_filtro == est %}background:var(--primary);color:white;{% else %}background:#e9ecef;color:#495057;{% endif %}">
+    {{ est | replace('_',' ') | title }}
+  </a>
+  {% endfor %}
+</div>
+
+{% if remitos %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Destinatario</th>
+        <th>Dirección</th>
+        <th>Fecha</th>
+        <th>Entrega Est.</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in remitos %}
+      <tr>
+        <td data-label="Número"><strong>{{ r.numero }}</strong></td>
+        <td data-label="Destinatario">{{ r.destinatario }}</td>
+        <td data-label="Dirección" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.direccion }}</td>
+        <td data-label="Fecha">{{ r.fecha[:10] }}</td>
+        <td data-label="Entrega Est.">{{ r.fecha_entrega_estimada or '—' }}</td>
+        <td data-label="Estado">
+          <span class="badge badge-{{ r.estado }}">{{ r.estado | replace('_',' ') }}</span>
+        </td>
+        <td data-label="Acciones">
+          <a href="{{ url_for('remitos.detalle', remito_id=r.id) }}" class="btn-primary" style="padding:4px 12px; font-size:.85em;">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Paginación -->
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('remitos.lista', page=p, estado=estado_filtro) }}"
+     class="pagination-link {% if p == page %}active{% endif %}"
+     style="{% if p == page %}background:var(--primary);color:white;{% endif %}">
+    {{ p }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p style="color:var(--gray); margin-top:12px; font-size:.9em;">{{ total }} remito{{ 's' if total != 1 }}</p>
+
+{% else %}
+<div style="text-align:center; padding:60px 0; color:var(--gray);">
+  <p style="font-size:3rem;">🚚</p>
+  <p style="margin-top:12px;">No hay remitos{% if estado_filtro %} con estado "{{ estado_filtro | replace('_',' ') }}"{% endif %}.</p>
+  <a href="{{ url_for('remitos.nuevo') }}" class="btn-primary" style="margin-top:16px; display:inline-block;">Crear el primero</a>
+</div>
+{% endif %}
+{% endblock %}

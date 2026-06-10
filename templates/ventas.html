@@ -83,6 +83,7 @@
           <div style="flex: 1; min-width: 300px;">
             <!-- Selección de cliente -->
             <form method="post" action="/guardar_cliente" style="margin-bottom: 20px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <label for="cliente">Cliente:</label>
               <select name="cliente_id" id="cliente" required onchange="this.form.submit()">
                 <option value="">-- Selecciona un cliente --</option>
@@ -109,6 +110,7 @@
                 <small>Precio: ${{ "%.2f"|format(p[3]) }} | Stock: {{ p[4] }}</small>
                 <form method="post" action="/agregar_al_carrito"
                   style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="producto_id" value="{{ p[0] }}">
                   <input type="number" name="cantidad" min="1" max="{{ p[4] }}" value="1"
                     style="width: 80px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px;" required>
@@ -122,7 +124,6 @@
           </div>
 
           <!-- Columna derecha: Carrito -->
-          <!-- Columna derecha: Carrito -->
           <div style="flex: 1; min-width: 300px;">
             <h3>🛒 Carrito ({{ carrito|length }} productos)</h3>
 
@@ -132,10 +133,11 @@
               {% for item in carrito %}
               <div class="carrito-item">
                 <div class="carrito-item-info">
-                  <strong>{{ item.descripcion }} ({{ item.codigo }})</strong><br>
+                  <strong>{{ item.descripcion }} ({{ item.sku }})</strong><br>
 
                   <!-- Formulario para editar el precio -->
                   <form method="post" action="/actualizar_precio_carrito" style="display: inline; margin-right: 10px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="index" value="{{ loop.index0 }}">
                     <input type="number" name="nuevo_precio" value="{{ '%.2f'|format(item.precio) }}" step="0.01"
                       min="0.01"
@@ -148,13 +150,17 @@
                 </div>
                 <div class="carrito-item-actions">
                   <form method="post" action="/actualizar_carrito" style="display: inline; margin-right: 8px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="index" value="{{ loop.index0 }}">
                     <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1"
                       style="width: 60px; padding: 4px;" required>
                     <button type="submit" class="btn-small btn-edit">🔄</button>
                   </form>
-                  <a href="/eliminar_del_carrito/{{ loop.index0 }}" class="btn-small btn-delete"
-                    onclick="return confirm('¿Eliminar del carrito?')">🗑️</a>
+                  <form method="post" action="/eliminar_del_carrito/{{ loop.index0 }}" style="display: inline;"
+                    onsubmit="return confirm('¿Eliminar del carrito?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn-small btn-delete">🗑️</button>
+                  </form>
                 </div>
               </div>
               {% endfor %}
@@ -166,7 +172,7 @@
 
             <!-- Botón de selección de pago -->
             {% if cliente_id_seleccionado and carrito %}
-            <a href="/seleccionar_pago" style="display: block; margin-top: 15px; background: #2ecc71; color: white; padding: 12px 25px; 
+            <a href="/seleccionar_pago" style="display: block; margin-top: 15px; background: #2ecc71; color: white; padding: 12px 25px;
             font-size: 1.1rem; text-decoration: none; border-radius: 8px; text-align: center; font-weight: bold;">
               💳 Seleccionar Método de Pago
             </a>
@@ -176,10 +182,13 @@
             <p style="color: #e63946; margin-top: 15px;">⚠️ Selecciona un cliente para continuar.</p>
             {% endif %}
 
-            <a href="/vaciar_carrito"
-              style="display: block; margin-top: 10px; color: #6c757d; text-decoration: none; text-align: center;">
-              🗑️ Vaciar carrito
-            </a>
+            <form method="post" action="/vaciar_carrito" style="margin-top: 10px; text-align: center;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit"
+                style="background: none; border: none; color: #6c757d; cursor: pointer; text-decoration: underline; font-size: 1rem;">
+                🗑️ Vaciar carrito
+              </button>
+            </form>
 
             {% else %}
             <p>El carrito está vacío.</p>

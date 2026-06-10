@@ -33,7 +33,13 @@
         {% endif %}
         {% endwith %}
 
-        <a href="/ventas_historial" class="back-link">← Volver al historial</a>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+          <a href="/ventas_historial" class="back-link">← Volver al historial</a>
+          <a href="{{ url_for('remitos.nuevo', desde_venta=venta[0]) }}"
+             style="background:#17a2b8;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600; font-size:.9em;">
+            🚚 Crear Remito
+          </a>
+        </div>
         <h1>📋 Detalle de Venta #{{ venta[0] }}</h1>
 
         <div class="card" style="margin: 20px 0;">

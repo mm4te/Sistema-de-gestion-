@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Auditoría{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <h2>📋 Log de Auditoría</h2>
+  <a href="{{ url_for('usuarios.lista') }}" class="btn-secondary">← Usuarios</a>
+</div>
+
+<!-- Filtros -->
+<form method="get" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; align-items:flex-end;">
+  <div>
+    <label style="display:block; font-weight:600; margin-bottom:4px; font-size:.85em;">Módulo</label>
+    <select name="modulo" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;">
+      <option value="">Todos</option>
+      {% for m in modulos_disponibles %}
+      <option value="{{ m }}" {% if modulo_filtro == m %}selected{% endif %}>{{ m | title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="display:block; font-weight:600; margin-bottom:4px; font-size:.85em;">Usuario</label>
+    <select name="usuario_id" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;">
+      <option value="">Todos</option>
+      {% for u in usuarios %}
+      <option value="{{ u.id }}" {% if uid_filtro == u.id %}selected{% endif %}>{{ u.username }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary" style="width:auto; padding:8px 20px;">Filtrar</button>
+  {% if modulo_filtro or uid_filtro %}
+  <a href="{{ url_for('usuarios.audit_log') }}" class="btn-secondary" style="padding:8px 16px;">Limpiar</a>
+  {% endif %}
+</form>
+
+{% if filas %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Usuario</th>
+        <th>Módulo</th>
+        <th>Acción</th>
+        <th>Detalle</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+      <tr>
+        <td data-label="Fecha" style="white-space:nowrap; font-size:.85em; color:var(--gray);">{{ f.fecha }}</td>
+        <td data-label="Usuario"><strong>{{ f.username or '—' }}</strong></td>
+        <td data-label="Módulo">
+          <span style="background:#e9ecef; padding:2px 8px; border-radius:10px; font-size:.8em; font-weight:600;">
+            {{ f.modulo }}
+          </span>
+        </td>
+        <td data-label="Acción">{{ f.accion }}</td>
+        <td data-label="Detalle" style="font-size:.85em; color:var(--gray);">{{ f.detalle or '—' }}</td>
+        <td data-label="IP" style="font-size:.8em; color:var(--gray);">{{ f.ip or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Paginación -->
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('usuarios.audit_log', page=p, modulo=modulo_filtro, usuario_id=uid_filtro) }}"
+     class="pagination-link {% if p == page %}active{% endif %}"
+     style="{% if p == page %}background:var(--primary);color:white;{% endif %}">
+    {{ p }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p style="color:var(--gray); margin-top:10px; font-size:.85em;">{{ total }} registro{{ 's' if total != 1 }}</p>
+
+{% else %}
+<div style="text-align:center; padding:60px 0; color:var(--gray);">
+  <p style="font-size:3rem;">📋</p>
+  <p style="margin-top:12px;">No hay registros de auditoría{% if modulo_filtro %} para el módulo "{{ modulo_filtro }}"{% endif %}.</p>
+</div>
+{% endif %}
+{% endblock %}

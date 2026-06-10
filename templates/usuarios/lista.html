@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <h2>👤 Usuarios del Sistema</h2>
+  {% if tiene_permiso('usuarios', 'crear') %}
+  <a href="{{ url_for('usuarios.nuevo') }}" class="btn-primary">+ Nuevo Usuario</a>
+  {% endif %}
+</div>
+
+<div style="margin-bottom:12px; padding:12px 16px; background:#f0f4ff; border-radius:8px; font-size:.9em; color:#4361ee;">
+  <strong>Tu sesión:</strong> {{ session.get('username') }} —
+  <span style="font-weight:600;">{{ session.get('rol_nombre') }}</span>
+  (nivel {{ session.get('rol_nivel') }})
+</div>
+
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Usuario</th>
+        <th>Rol</th>
+        <th>Nivel</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td data-label="#">{{ u.id }}</td>
+        <td data-label="Usuario">
+          <strong>{{ u.username }}</strong>
+          {% if u.id == session.get('user_id') %}
+          <span style="font-size:.75em; background:#e9ecef; padding:2px 8px; border-radius:10px; margin-left:6px;">Vos</span>
+          {% endif %}
+        </td>
+        <td data-label="Rol">
+          <span class="badge" style="
+            {% if u.rol_nivel == 1 %}background:#2d3748;color:white;
+            {% elif u.rol_nivel == 2 %}background:#4361ee;color:white;
+            {% elif u.rol_nivel == 3 %}background:#f78221;color:white;
+            {% elif u.rol_nivel == 4 %}background:#2ecc71;color:white;
+            {% else %}background:#6c757d;color:white;{% endif %}">
+            {{ u.rol_nombre }}
+          </span>
+        </td>
+        <td data-label="Nivel">{{ u.rol_nivel }}</td>
+        <td data-label="Acciones">
+          {% if tiene_permiso('usuarios', 'editar') %}
+          <a href="{{ url_for('usuarios.editar', user_id=u.id) }}"
+             class="btn-secondary" style="padding:4px 12px; font-size:.85em;">✏️ Editar</a>
+          {% endif %}
+          {% if g.es_superadmin and u.id != session.get('user_id') %}
+          <form method="post" action="{{ url_for('usuarios.eliminar', user_id=u.id) }}"
+                style="display:inline;" onsubmit="return confirm('¿Eliminar a {{ u.username }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:var(--danger);color:white;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:.85em;">
+              🗑️
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Tabla de roles y permisos (referencia) -->
+<details style="margin-top:28px;">
+  <summary style="cursor:pointer; font-weight:600; color:var(--gray); margin-bottom:8px;">
+    ℹ️ Ver matriz de roles y permisos
+  </summary>
+  <div class="table-responsive" style="margin-top:12px;">
+    <table style="font-size:.85em;">
+      <thead>
+        <tr>
+          <th>Módulo / Acción</th>
+          <th style="text-align:center;">SuperAdmin</th>
+          <th style="text-align:center;">Admin</th>
+          <th style="text-align:center;">Supervisor</th>
+          <th style="text-align:center;">Vendedor</th>
+          <th style="text-align:center;">Depósito</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set filas = [
+          ('Inventario', 'inventario', ['ver','crear','editar','eliminar','importar']),
+          ('Ventas', 'ventas', ['ver','crear']),
+          ('Clientes', 'clientes', ['ver','crear','editar','eliminar']),
+          ('Presupuestos', 'presupuestos', ['ver','crear','editar','eliminar','cambiar_estado']),
+          ('Remitos', 'remitos', ['ver','crear','editar','eliminar','cambiar_estado']),
+          ('Reportes', 'reportes', ['ver']),
+          ('TiendaNube', 'tiendanube', ['ver','sincronizar']),
+          ('Usuarios', 'usuarios', ['ver','crear','editar','eliminar']),
+          ('Auditoría', 'audit_log', ['ver']),
+        ] %}
+        {% set permisos_por_nivel = {
+          2: [('inventario','ver'),('inventario','crear'),('inventario','editar'),('inventario','eliminar'),('inventario','importar'),
+              ('ventas','ver'),('ventas','crear'),
+              ('clientes','ver'),('clientes','crear'),('clientes','editar'),('clientes','eliminar'),
+              ('presupuestos','ver'),('presupuestos','crear'),('presupuestos','editar'),('presupuestos','eliminar'),('presupuestos','cambiar_estado'),
+              ('remitos','ver'),('remitos','crear'),('remitos','editar'),('remitos','eliminar'),('remitos','cambiar_estado'),
+              ('reportes','ver'),('tiendanube','ver'),('tiendanube','sincronizar'),
+              ('usuarios','ver'),('usuarios','crear'),('usuarios','editar'),
+              ('audit_log','ver')],
+          3: [('inventario','ver'),('ventas','ver'),('ventas','crear'),('clientes','ver'),('clientes','crear'),('clientes','editar'),
+              ('presupuestos','ver'),('presupuestos','crear'),('presupuestos','editar'),('presupuestos','cambiar_estado'),
+              ('remitos','ver'),('remitos','crear'),('remitos','editar'),('remitos','cambiar_estado'),('reportes','ver')],
+          4: [('inventario','ver'),('ventas','ver'),('ventas','crear'),('clientes','ver'),('clientes','crear'),
+              ('presupuestos','ver'),('presupuestos','crear'),('presupuestos','editar'),('presupuestos','cambiar_estado'),
+              ('remitos','ver'),('reportes','ver')],
+          5: [('inventario','ver'),('inventario','crear'),('inventario','editar'),('inventario','importar'),
+              ('remitos','ver'),('remitos','editar'),('remitos','cambiar_estado'),('clientes','ver'),('reportes','ver')],
+        } %}
+        {% for nombre, mod, acciones in filas %}
+        {% for acc in acciones %}
+        <tr>
+          <td>{{ nombre if loop.first else '' }} <span style="color:var(--gray);">{{ acc }}</span></td>
+          <td style="text-align:center;">✅</td>
+          <td style="text-align:center;">{{ '✅' if (mod,acc) in permisos_por_nivel[2] else '—' }}</td>
+          <td style="text-align:center;">{{ '✅' if (mod,acc) in permisos_por_nivel[3] else '—' }}</td>
+          <td style="text-align:center;">{{ '✅' if (mod,acc) in permisos_por_nivel[4] else '—' }}</td>
+          <td style="text-align:center;">{{ '✅' if (mod,acc) in permisos_por_nivel[5] else '—' }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endblock %}

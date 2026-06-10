@@ -36,6 +36,7 @@
       {% endwith %}
 
       <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="archivo">Selecciona tu archivo Excel (.xlsx):</label>
         <input type="file" name="archivo" id="archivo" accept=".xlsx" required>
         <button type="submit">Subir Productos</button>

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Presupuestos{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+  <h1>📋 Presupuestos ({{ total }})</h1>
+  <a href="{{ url_for('presupuestos.nuevo') }}" class="btn-primary">➕ Nuevo Presupuesto</a>
+</div>
+
+<!-- Filtro por estado -->
+<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
+  <a href="{{ url_for('presupuestos.lista') }}"
+     style="padding:6px 14px; border-radius:20px; text-decoration:none; font-size:.88em; font-weight:600;
+            background:{{ '#4361ee' if not estado_filtro else '#e9ecef' }};
+            color:{{ 'white' if not estado_filtro else '#495057' }};">
+    Todos
+  </a>
+  {% for est in estados %}
+  <a href="{{ url_for('presupuestos.lista', estado=est) }}"
+     style="padding:6px 14px; border-radius:20px; text-decoration:none; font-size:.88em; font-weight:600;
+            background:{{ '#4361ee' if estado_filtro == est else '#e9ecef' }};
+            color:{{ 'white' if estado_filtro == est else '#495057' }};">
+    {{ est|capitalize }}
+  </a>
+  {% endfor %}
+</div>
+
+{% if presupuestos %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Cliente</th>
+        <th>Fecha</th>
+        <th>Válido hasta</th>
+        <th>Total</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in presupuestos %}
+      <tr>
+        <td data-label="Número"><strong>{{ p['numero'] }}</strong></td>
+        <td data-label="Cliente">{{ p['cliente_nombre'] }}</td>
+        <td data-label="Fecha">{{ p['fecha'][:10] }}</td>
+        <td data-label="Válido hasta">{{ p['fecha_validez'] }}</td>
+        <td data-label="Total">$ {{ p['total'] | pesos }}</td>
+        <td data-label="Estado">
+          <span class="badge badge-{{ p['estado'] }}">{{ p['estado'] }}</span>
+        </td>
+        <td data-label="Acciones">
+          <a href="{{ url_for('presupuestos.detalle', presupuesto_id=p['id']) }}"
+             style="color:#4361ee; text-decoration:none; margin-right:8px;">🔍 Ver</a>
+          {% if p['estado'] == 'borrador' %}
+          <a href="{{ url_for('presupuestos.editar', presupuesto_id=p['id']) }}"
+             style="color:#f78221; text-decoration:none;">✏️ Editar</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex; justify-content:center; gap:8px; margin-top:20px; flex-wrap:wrap;">
+  {% if page > 1 %}
+  <a href="{{ url_for('presupuestos.lista', page=page-1, estado=estado_filtro) }}" class="pagination-link">« Anterior</a>
+  {% endif %}
+  {% for n in range(1, total_pages+1) %}
+    {% if n == page %}
+    <span style="background:var(--primary);color:white;padding:6px 12px;border-radius:6px;font-weight:bold;">{{ n }}</span>
+    {% else %}
+    <a href="{{ url_for('presupuestos.lista', page=n, estado=estado_filtro) }}" class="pagination-link">{{ n }}</a>
+    {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="{{ url_for('presupuestos.lista', page=page+1, estado=estado_filtro) }}" class="pagination-link">Siguiente »</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:60px 20px; color:#6c757d;">
+  <p style="font-size:2rem;">📋</p>
+  <p>No hay presupuestos{% if estado_filtro %} con estado "{{ estado_filtro }}"{% endif %}.</p>
+  <a href="{{ url_for('presupuestos.nuevo') }}" class="btn-primary" style="margin-top:16px; display:inline-block;">➕ Crear el primero</a>
+</div>
+{% endif %}
+{% endblock %}

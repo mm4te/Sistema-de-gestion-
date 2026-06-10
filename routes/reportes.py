@@ -1,20 +1,23 @@
 # routes/reportes.py
-import sqlite3
+import io
 from flask import Blueprint, send_file
 from datetime import datetime
 from routes import login_required
+from models import get_conn
 import pandas as pd
 
 reportes_bp = Blueprint('reportes', __name__)
 
+
 @reportes_bp.route('/reporte/excel')
 @login_required
 def reporte_excel():
-    conn = sqlite3.connect('negocio.db')
+    conn = get_conn()
     mes_actual = datetime.now().strftime('%Y-%m')
     df = pd.read_sql_query("""
         SELECT v.fecha, c.nombre AS cliente, p.descripcion AS producto,
-               dv.cantidad, dv.precio_unitario, (dv.cantidad * dv.precio_unitario) AS subtotal
+               dv.cantidad, dv.precio_unitario,
+               (dv.cantidad * dv.precio_unitario) AS subtotal
         FROM ventas v
         JOIN detalle_venta dv ON v.id = dv.venta_id
         JOIN clientes c ON v.cliente_id = c.id
@@ -23,7 +26,15 @@ def reporte_excel():
         ORDER BY v.fecha
     """, conn, params=(mes_actual,))
     conn.close()
+
+    output = io.BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+
     hoy = datetime.now().strftime('%d-%m-%Y')
-    output_path = f'reporte_ventas_{hoy}.xlsx'
-    df.to_excel(output_path, index=False)
-    return send_file(output_path, as_attachment=True)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'reporte_ventas_{hoy}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )

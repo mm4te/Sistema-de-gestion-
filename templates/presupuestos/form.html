@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <h1>📋 {{ titulo }}</h1>
+  <a href="{{ url_for('presupuestos.lista') }}" class="back-link">← Volver</a>
+</div>
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <!-- Datos generales -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-bottom:24px;">
+    <div>
+      <label for="cliente_id">Cliente *</label>
+      <select id="cliente_id" name="cliente_id" required>
+        <option value="">-- Seleccioná un cliente --</option>
+        {% for c in clientes %}
+        <option value="{{ c['id'] }}"
+          {% if presupuesto and presupuesto['cliente_id'] == c['id'] %}selected{% endif %}>
+          {{ c['nombre'] }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="fecha_validez">Válido hasta *</label>
+      <input type="date" id="fecha_validez" name="fecha_validez"
+             value="{{ fecha_validez_default }}" required>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <label for="observaciones">Observaciones</label>
+    <textarea id="observaciones" name="observaciones" rows="3"
+              style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:1rem;resize:vertical;"
+              placeholder="Condiciones, notas adicionales...">{{ presupuesto['observaciones'] if presupuesto and presupuesto['observaciones'] else '' }}</textarea>
+  </div>
+
+  <!-- Tabla de ítems -->
+  <h3 style="margin-bottom:12px;">📦 Ítems del presupuesto</h3>
+
+  <div class="table-responsive">
+    <table id="tabla-items" style="min-width:700px;">
+      <thead>
+        <tr>
+          <th style="width:30%;">Producto (opcional)</th>
+          <th style="width:28%;">Descripción *</th>
+          <th style="width:10%;">Cant.</th>
+          <th style="width:14%;">Precio unit.</th>
+          <th style="width:12%;">Subtotal</th>
+          <th style="width:6%;"></th>
+        </tr>
+      </thead>
+      <tbody id="items-body"></tbody>
+    </table>
+  </div>
+
+  <button type="button" id="btn-agregar"
+          style="margin-top:12px; background:#f78221; color:white; border:none; padding:8px 18px;
+                 border-radius:6px; cursor:pointer; font-weight:600;">
+    ➕ Agregar ítem
+  </button>
+
+  <!-- Total -->
+  <div style="text-align:right; font-size:1.4rem; font-weight:bold; margin:20px 0; color:var(--primary);">
+    Total: $<span id="total-display">0.00</span>
+  </div>
+
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <button type="submit" style="background:var(--primary);">💾 Guardar Presupuesto</button>
+    <a href="{{ url_for('presupuestos.lista') }}"
+       style="padding:12px 20px; border:1px solid var(--border); border-radius:8px;
+              text-decoration:none; color:var(--gray); font-weight:600;">
+      Cancelar
+    </a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRODUCTOS = {{ productos_json | safe }};
+const ITEMS_EXISTENTES = {{ items_existentes | safe }};
+
+const tbody   = document.getElementById('items-body');
+const totalEl = document.getElementById('total-display');
+
+function formatNum(n) {
+  return parseFloat(n || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function recalcTotal() {
+  let sum = 0;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cant  = parseFloat(tr.querySelector('.inp-cant').value)  || 0;
+    const precio= parseFloat(tr.querySelector('.inp-precio').value) || 0;
+    const sub   = cant * precio;
+    tr.querySelector('.sub-display').textContent = '$' + formatNum(sub);
+    sum += sub;
+  });
+  totalEl.textContent = formatNum(sum);
+}
+
+function buildProductSelect(selectedId) {
+  let html = '<option value="">— personalizado —</option>';
+  PRODUCTOS.forEach(p => {
+    const sel = (selectedId && parseInt(selectedId) === p.id) ? 'selected' : '';
+    html += `<option value="${p.id}" data-precio="${p.precio}" data-desc="${p.descripcion}" ${sel}>${p.sku} · ${p.descripcion}</option>`;
+  });
+  return html;
+}
+
+function addRow(item) {
+  item = item || {};
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>
+      <select name="item_producto_id" class="sel-producto" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
+        ${buildProductSelect(item.producto_id)}
+      </select>
+    </td>
+    <td>
+      <input type="text" name="item_descripcion" class="inp-desc" required
+             value="${item.descripcion || ''}"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem;"
+             placeholder="Descripción del ítem">
+    </td>
+    <td>
+      <input type="number" name="item_cantidad" class="inp-cant" required
+             value="${item.cantidad || 1}" min="0.01" step="0.01"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem;">
+    </td>
+    <td>
+      <input type="number" name="item_precio_unitario" class="inp-precio" required
+             value="${item.precio_unitario || ''}" min="0" step="0.01"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.9rem;"
+             placeholder="0.00">
+    </td>
+    <td class="sub-display" style="text-align:right; font-weight:600; padding:8px;">$0.00</td>
+    <td style="text-align:center;">
+      <button type="button" class="btn-remove"
+              style="background:#e63946;color:white;border:none;border-radius:4px;padding:4px 9px;cursor:pointer;">✕</button>
+    </td>
+  `;
+
+  // Auto-fill from product selection
+  const sel = tr.querySelector('.sel-producto');
+  sel.addEventListener('change', () => {
+    const opt = sel.selectedOptions[0];
+    if (opt.value) {
+      tr.querySelector('.inp-desc').value  = opt.dataset.desc;
+      tr.querySelector('.inp-precio').value= opt.dataset.precio;
+    }
+    recalcTotal();
+  });
+
+  tr.querySelector('.inp-cant').addEventListener('input',  recalcTotal);
+  tr.querySelector('.inp-precio').addEventListener('input', recalcTotal);
+  tr.querySelector('.btn-remove').addEventListener('click', () => {
+    tr.remove();
+    recalcTotal();
+  });
+
+  tbody.appendChild(tr);
+  recalcTotal();
+}
+
+document.getElementById('btn-agregar').addEventListener('click', () => addRow());
+
+// Cargar ítems existentes (modo edición) o arrancar con una fila vacía
+if (ITEMS_EXISTENTES.length > 0) {
+  ITEMS_EXISTENTES.forEach(addRow);
+} else {
+  addRow();
+}
+</script>
+{% endblock %}

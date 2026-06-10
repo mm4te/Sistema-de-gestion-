@@ -95,6 +95,7 @@
                     <button type="submit" class="btn-small btn-edit" style="background-color: #4361ee;">✏️ Editar</button>
                   </form>
                   <form action="/eliminar_cliente/{{ c['id'] }}" method="post" style="display: inline-block;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete" style="background-color: red;"
                       onclick="return confirm('¿Confirma que desea eliminar este cliente?');">🗑️ Eliminar</button>
                   </form>

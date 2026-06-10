@@ -45,6 +45,7 @@
       <h2>Total a pagar: ${{ "%.2f"|format(total) }}</h2>
 
       <form id="pago-form" method="post" action="/confirmar_venta">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="pago-option">
           <input type="radio" id="efectivo" name="metodo_pago" value="efectivo" required>
           <label for="efectivo">💵 Efectivo</label>

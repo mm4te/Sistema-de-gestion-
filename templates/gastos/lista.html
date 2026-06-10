@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Gastos{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <h2>💸 Gastos de la Empresa</h2>
+  <div style="display:flex; gap:8px;">
+    {% if tiene_permiso('gastos', 'ver') %}
+    <a href="{{ url_for('gastos.categorias') }}" class="btn-secondary">🗂️ Categorías</a>
+    {% endif %}
+    {% if tiene_permiso('gastos', 'crear') %}
+    <a href="{{ url_for('gastos.nuevo') }}" class="btn-primary">+ Nuevo Gasto</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" style="background:#f8f9fa; padding:16px; border-radius:10px; margin-bottom:20px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label style="display:block; font-weight:600; font-size:.85em; margin-bottom:4px;">Categoría</label>
+      <select name="categoria_id" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-width:160px;">
+        <option value="">Todas</option>
+        {% for c in categorias %}
+        <option value="{{ c.id }}" {% if categoria_id_filtro == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block; font-weight:600; font-size:.85em; margin-bottom:4px;">Desde</label>
+      <input type="date" name="fecha_desde" value="{{ fecha_desde }}"
+             style="padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+    </div>
+    <div>
+      <label style="display:block; font-weight:600; font-size:.85em; margin-bottom:4px;">Hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ fecha_hasta }}"
+             style="padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+    </div>
+    <div style="display:flex; align-items:center; gap:6px; padding-bottom:2px;">
+      <input type="checkbox" name="recurrentes" value="1" id="chk-rec" {% if solo_recurrentes %}checked{% endif %}>
+      <label for="chk-rec" style="font-size:.9em; font-weight:500; margin:0;">Solo recurrentes</label>
+    </div>
+    <button type="submit" class="btn-primary" style="width:auto; padding:8px 20px;">Filtrar</button>
+    <a href="{{ url_for('gastos.lista') }}" class="btn-secondary" style="padding:8px 16px;">Limpiar</a>
+  </div>
+</form>
+
+<!-- Totalizador -->
+<div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+  <div class="card" style="border-left-color:#e63946; flex:1; min-width:180px; padding:14px 20px;">
+    <p style="font-size:.8em; color:var(--gray); font-weight:600;">TOTAL FILTRADO</p>
+    <p style="font-size:1.6rem; font-weight:700; color:#e63946;">${{ total_monto | pesos }}</p>
+  </div>
+  <div class="card" style="border-left-color:#6c757d; flex:1; min-width:180px; padding:14px 20px;">
+    <p style="font-size:.8em; color:var(--gray); font-weight:600;">REGISTROS</p>
+    <p style="font-size:1.6rem; font-weight:700;">{{ total }}</p>
+  </div>
+</div>
+
+{% if filas %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Categoría</th>
+        <th>Descripción</th>
+        <th>Método</th>
+        <th style="text-align:right;">Monto</th>
+        <th>Tipo</th>
+        <th>Adj.</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in filas %}
+      <tr>
+        <td data-label="Fecha" style="white-space:nowrap;">{{ g.fecha }}</td>
+        <td data-label="Categoría">
+          <span style="font-size:.8em; background:#e9ecef; padding:2px 8px; border-radius:10px;">{{ g.categoria_nombre }}</span>
+        </td>
+        <td data-label="Descripción">
+          {{ g.descripcion }}
+          {% if g.gasto_padre_id %}
+          <span style="font-size:.75em; color:var(--gray);"> (auto)</span>
+          {% endif %}
+        </td>
+        <td data-label="Método" style="font-size:.85em; color:var(--gray);">{{ g.metodo_pago or '—' }}</td>
+        <td data-label="Monto" style="text-align:right; font-weight:700;">${{ g.monto | pesos }}</td>
+        <td data-label="Tipo">
+          {% if g.es_recurrente %}
+          <span class="badge badge-enviado" title="Frecuencia: {{ g.frecuencia }}">🔁 {{ g.frecuencia }}</span>
+          {% endif %}
+        </td>
+        <td data-label="Adj." style="text-align:center;">
+          {% if g.archivo_ruta %}
+          <a href="{{ url_for('gastos.descargar_archivo', gasto_id=g.id) }}"
+             title="{{ g.archivo_nombre }}"
+             style="font-size:1.2rem; text-decoration:none;">📎</a>
+          {% endif %}
+        </td>
+        <td data-label="Acciones">
+          {% if tiene_permiso('gastos', 'editar') %}
+          <a href="{{ url_for('gastos.editar', gasto_id=g.id) }}"
+             class="btn-secondary" style="padding:4px 10px; font-size:.8em;">✏️</a>
+          {% endif %}
+          {% if tiene_permiso('gastos', 'eliminar') %}
+          <form method="post" action="{{ url_for('gastos.eliminar', gasto_id=g.id) }}"
+                style="display:inline;"
+                onsubmit="return confirm('¿Eliminar este gasto?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:var(--danger);color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.8em;">
+              🗑️
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('gastos.lista', page=p, categoria_id=categoria_id_filtro, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+     class="pagination-link {% if p == page %}active{% endif %}"
+     style="{% if p == page %}background:var(--primary);color:white;{% endif %}">
+    {{ p }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:60px 0; color:var(--gray);">
+  <p style="font-size:3rem;">💸</p>
+  <p style="margin-top:12px;">No hay gastos registrados con los filtros actuales.</p>
+  {% if tiene_permiso('gastos', 'crear') %}
+  <a href="{{ url_for('gastos.nuevo') }}" class="btn-primary" style="margin-top:16px; display:inline-block;">Registrar el primero</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

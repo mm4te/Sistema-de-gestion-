@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Categorías de Gasto{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <h2>🗂️ Categorías de Gasto</h2>
+  <a href="{{ url_for('gastos.lista') }}" class="btn-secondary">← Gastos</a>
+</div>
+
+<!-- Formulario nueva categoría -->
+{% if tiene_permiso('gastos', 'crear') %}
+<div class="card" style="margin-bottom:28px;">
+  <h3 style="font-size:1rem; margin-bottom:14px;">Nueva categoría</h3>
+  <form method="post" action="{{ url_for('gastos.nueva_categoria') }}"
+        style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <label style="display:block; font-size:.85em; font-weight:600; margin-bottom:4px;">Nombre *</label>
+      <input type="text" name="nombre" required maxlength="80" placeholder="ej: Capacitaciones"
+             style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; width:200px;">
+    </div>
+    <div>
+      <label style="display:block; font-size:.85em; font-weight:600; margin-bottom:4px;">Descripción</label>
+      <input type="text" name="descripcion" maxlength="200" placeholder="Opcional"
+             style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; width:280px;">
+    </div>
+    <button type="submit" class="btn-primary" style="width:auto; padding:8px 20px;">Agregar</button>
+  </form>
+</div>
+{% endif %}
+
+<!-- Tabla de categorías -->
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nombre</th>
+        <th>Descripción</th>
+        <th>Estado</th>
+        {% if tiene_permiso('gastos', 'editar') %}
+        <th>Acciones</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for cat in categorias %}
+      <tr {% if not cat.activo %}style="opacity:.55;"{% endif %}>
+        <td data-label="#">{{ cat.id }}</td>
+        <td data-label="Nombre"><strong>{{ cat.nombre }}</strong></td>
+        <td data-label="Descripción" style="color:var(--gray);">{{ cat.descripcion or '—' }}</td>
+        <td data-label="Estado">
+          {% if cat.activo %}
+          <span class="badge badge-aprobado">Activa</span>
+          {% else %}
+          <span class="badge badge-rechazado">Inactiva</span>
+          {% endif %}
+        </td>
+        {% if tiene_permiso('gastos', 'editar') %}
+        <td data-label="Acciones">
+          <button type="button"
+                  onclick="abrirModalEditar({{ cat.id }}, '{{ cat.nombre | e }}', '{{ (cat.descripcion or '') | e }}', {{ cat.activo }})"
+                  class="btn-secondary" style="padding:4px 12px; font-size:.85em;">
+            ✏️ Editar
+          </button>
+          {% if tiene_permiso('gastos', 'eliminar') %}
+          <form method="post" action="{{ url_for('gastos.eliminar_categoria_route', cat_id=cat.id) }}"
+                style="display:inline;"
+                onsubmit="return confirm('¿Eliminar la categoría {{ cat.nombre | e }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:var(--danger);color:white;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:.85em;">
+              🗑️
+            </button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal editar categoría -->
+<div id="modal-editar-cat" class="modal-overlay">
+  <div class="modal-box">
+    <h3>Editar categoría</h3>
+    <form method="post" id="form-editar-cat">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Nombre *</label>
+      <input type="text" name="nombre" id="edit-nombre" required maxlength="80">
+      <label>Descripción</label>
+      <input type="text" name="descripcion" id="edit-descripcion" maxlength="200">
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+        <input type="checkbox" name="activo" id="edit-activo" value="1">
+        Activa
+      </label>
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button type="submit" class="btn-primary" style="width:auto; padding:8px 24px;">Guardar</button>
+        <button type="button"
+                onclick="document.getElementById('modal-editar-cat').classList.remove('active')"
+                class="btn-secondary" style="width:auto; padding:8px 20px;">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirModalEditar(id, nombre, descripcion, activo) {
+  document.getElementById('form-editar-cat').action = `/gastos/categorias/${id}/editar`;
+  document.getElementById('edit-nombre').value       = nombre;
+  document.getElementById('edit-descripcion').value  = descripcion;
+  document.getElementById('edit-activo').checked     = activo == 1;
+  document.getElementById('modal-editar-cat').classList.add('active');
+}
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); });
+});
+</script>
+{% endblock %}

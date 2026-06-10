@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Comenda Deco{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <h2><span>Comenda Deco</span></h2>
+      <a href="/"               {% if request.endpoint  == 'main.index'          %}class="active"{% endif %}><span>📊 Inicio</span></a>
+      <a href="/inventario"     {% if request.blueprint == 'inventario'           %}class="active"{% endif %}><span>📦 Inventario</span></a>
+      <a href="/ventas"         {% if request.blueprint == 'ventas'               %}class="active"{% endif %}><span>🛒 Ventas</span></a>
+      <a href="/clientes"       {% if request.blueprint == 'clientes'             %}class="active"{% endif %}><span>👥 Clientes</span></a>
+      <a href="/ventas_historial" {% if request.blueprint == 'ventas_historial'   %}class="active"{% endif %}><span>📈 Ventas Hist.</span></a>
+      <a href="/presupuestos"   {% if request.blueprint == 'presupuestos'         %}class="active"{% endif %}><span>📋 Presupuestos</span></a>
+      <a href="/remitos"        {% if request.blueprint == 'remitos'               %}class="active"{% endif %}><span>🚚 Remitos</span></a>
+      {% if tiene_permiso('gastos', 'ver') %}
+      <a href="{{ url_for('gastos.lista') }}"        {% if request.blueprint == 'gastos'               %}class="active"{% endif %}><span>💸 Gastos</span></a>
+      {% endif %}
+      {% if tiene_permiso('resumen', 'ver') %}
+      <a href="{{ url_for('resumen.index') }}" {% if request.blueprint == 'resumen' %}class="active"{% endif %}><span>📊 Resumen Mensual</span></a>
+      {% endif %}
+      <a href="/reporte/excel"><span>📥 Reporte</span></a>
+      {% if tiene_permiso('usuarios', 'ver') %}
+      <a href="{{ url_for('usuarios.lista') }}" {% if request.blueprint == 'usuarios' %}class="active"{% endif %}><span>👤 Usuarios</span></a>
+      {% endif %}
+      {% if tiene_permiso('audit_log', 'ver') %}
+      <a href="{{ url_for('usuarios.audit_log') }}" {% if request.endpoint == 'usuarios.audit_log' %}class="active"{% endif %}><span>📋 Auditoría</span></a>
+      {% endif %}
+      <a href="/logout" style="margin-top: auto; color: #e63946;"><span>🚪 Cerrar sesión</span></a>
+    </div>
+
+    <div class="main-content">
+      <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

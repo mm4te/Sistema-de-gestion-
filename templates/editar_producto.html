@@ -32,6 +32,7 @@
       {% endwith %}
 
       <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="sku">Código *</label>
         <input type="text" id="sku" name="sku" value="{{ producto['sku'] }}" required>
 

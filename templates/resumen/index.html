@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% block title %}Resumen {{ data.mes_nombre }} {{ data.year }}{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{# ── Navegación de mes ─────────────────────────────────────────────────────── #}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+  <div style="display:flex; align-items:center; gap:12px;">
+    <a href="{{ url_for('resumen.index', year=prev_year, month=prev_month) }}"
+       class="btn-secondary" style="padding:6px 14px;">← Anterior</a>
+
+    <h2 style="margin:0; font-size:1.5rem;">
+      📊 {{ data.mes_nombre }} {{ data.year }}
+      {% if data.year == hoy.year and data.month == hoy.month %}
+      <span style="font-size:.7em; background:#e9ecef; padding:2px 10px; border-radius:12px; color:var(--gray); font-weight:500; vertical-align:middle;">mes actual</span>
+      {% endif %}
+    </h2>
+
+    {% if not es_futuro %}
+    <a href="{{ url_for('resumen.index', year=next_year, month=next_month) }}"
+       class="btn-secondary" style="padding:6px 14px;">Siguiente →</a>
+    {% else %}
+    <span class="btn-secondary" style="padding:6px 14px; opacity:.4; cursor:not-allowed;">Siguiente →</span>
+    {% endif %}
+  </div>
+
+  {# Selector rápido #}
+  <form method="get" style="display:flex; gap:8px; align-items:center;">
+    <select name="month" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:.9em;">
+      {% for i, nombre in enumerate(meses) %}
+      <option value="{{ i+1 }}" {% if i+1 == data.month %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:.9em;">
+      {% for y in years | reverse %}
+      <option value="{{ y }}" {% if y == data.year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-primary" style="width:auto; padding:6px 16px; font-size:.9em;">Ir</button>
+  </form>
+
+  {# Exportar #}
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('resumen.excel', year=data.year, month=data.month) }}"
+       class="btn-secondary" style="padding:6px 14px;">📥 Excel</a>
+    <a href="{{ url_for('resumen.pdf',   year=data.year, month=data.month) }}"
+       class="btn-secondary" style="padding:6px 14px;">📄 PDF</a>
+  </div>
+</div>
+
+{# ── 4 tarjetas resumen ────────────────────────────────────────────────────── #}
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+
+  <div class="card" style="border-left-color:#4361ee; padding:16px 20px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Ingresos</p>
+    <p style="font-size:1.5rem; font-weight:700; color:#4361ee;">${{ data.ingresos.total | pesos }}</p>
+    <p style="font-size:.8em; color:var(--gray); margin-top:4px;">{{ data.ingresos.cantidad }} venta{{ 's' if data.ingresos.cantidad != 1 }}</p>
+  </div>
+
+  <div class="card" style="border-left-color:#e63946; padding:16px 20px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Gastos</p>
+    <p style="font-size:1.5rem; font-weight:700; color:#e63946;">${{ data.gastos.total | pesos }}</p>
+    <p style="font-size:.8em; color:var(--gray); margin-top:4px;">{{ data.gastos.cantidad }} registro{{ 's' if data.gastos.cantidad != 1 }}</p>
+  </div>
+
+  <div class="card" style="border-left-color:{% if data.balance >= 0 %}#2ecc71{% else %}#e63946{% endif %}; padding:16px 20px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Balance</p>
+    <p style="font-size:1.5rem; font-weight:700; color:{% if data.balance >= 0 %}#2ecc71{% else %}#e63946{% endif %};">
+      {{ '+' if data.balance >= 0 else '' }}${{ data.balance | pesos }}
+    </p>
+    <p style="font-size:.8em; color:var(--gray); margin-top:4px;">
+      {% if data.ingresos.total > 0 %}ingresos – gastos{% else %}sin ventas registradas{% endif %}
+    </p>
+  </div>
+
+  <div class="card" style="border-left-color:#f78221; padding:16px 20px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Margen</p>
+    <p style="font-size:1.5rem; font-weight:700; color:#f78221;">{{ data.margen }}%</p>
+    <p style="font-size:.8em; color:var(--gray); margin-top:4px;">sobre ingresos totales</p>
+  </div>
+
+</div>
+
+{# ── Gráfico de evolución (ancho completo) ─────────────────────────────────── #}
+<div class="card" style="margin-bottom:24px; padding:20px 24px;">
+  <h3 style="font-size:1rem; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:16px;">
+    Ingresos vs Gastos — últimos 12 meses
+  </h3>
+  <div style="position:relative; height:260px;">
+    <canvas id="chartEvolucion"></canvas>
+  </div>
+</div>
+
+{# ── Donut + tabla de categorías ───────────────────────────────────────────── #}
+<div style="display:grid; grid-template-columns:1fr 1.4fr; gap:20px; margin-bottom:24px;">
+
+  <div class="card" style="padding:20px 24px;">
+    <h3 style="font-size:1rem; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:12px;">
+      Distribución de Gastos
+    </h3>
+    {% if data.por_categoria %}
+    <div style="position:relative; height:240px;">
+      <canvas id="chartCategorias"></canvas>
+    </div>
+    {% else %}
+    <div style="text-align:center; padding:40px 0; color:var(--gray);">
+      <p style="font-size:2.5rem;">💸</p>
+      <p style="margin-top:8px;">Sin gastos registrados este mes.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:20px 24px;">
+    <h3 style="font-size:1rem; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:12px;">
+      Gastos por Categoría
+    </h3>
+    {% if data.por_categoria %}
+    <div class="table-responsive" style="margin:0;">
+      <table style="font-size:.9em;">
+        <thead>
+          <tr>
+            <th>Categoría</th>
+            <th style="text-align:right;">Total</th>
+            <th style="text-align:right;">%</th>
+            <th style="text-align:right;">N°</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in data.por_categoria %}
+          <tr>
+            <td>
+              <span id="cat-dot-{{ loop.index0 }}"
+                    style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ccc;margin-right:6px;"></span>
+              {{ c.categoria }}
+            </td>
+            <td style="text-align:right; font-weight:600;">${{ c.total | pesos }}</td>
+            <td style="text-align:right; color:var(--gray);">{{ c.porcentaje }}%</td>
+            <td style="text-align:right; color:var(--gray);">{{ c.cantidad }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--border);">
+            <td><strong>Total</strong></td>
+            <td style="text-align:right; font-weight:700;">${{ data.gastos.total | pesos }}</td>
+            <td style="text-align:right; color:var(--gray);">100%</td>
+            <td style="text-align:right; color:var(--gray);">{{ data.gastos.cantidad }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--gray); margin-top:20px;">No hay gastos para este período.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Ventas del mes ────────────────────────────────────────────────────────── #}
+<div class="card" style="padding:20px 24px;">
+  <h3 style="font-size:1rem; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:12px;">
+    Ventas del Mes
+    <span style="font-size:.85em; font-weight:500; color:var(--gray); text-transform:none;">
+      (top {{ data.ultimas_ventas | length }} por monto)
+    </span>
+  </h3>
+  {% if data.ultimas_ventas %}
+  <div class="table-responsive" style="margin:0;">
+    <table style="font-size:.9em;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>Método</th>
+          <th style="text-align:right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in data.ultimas_ventas %}
+        <tr>
+          <td data-label="#">{{ v.id }}</td>
+          <td data-label="Fecha">{{ v.fecha[:10] }}</td>
+          <td data-label="Cliente">{{ v.cliente }}</td>
+          <td data-label="Método" style="color:var(--gray); font-size:.85em;">{{ v.metodo_pago or '—' }}</td>
+          <td data-label="Total" style="text-align:right; font-weight:600;">${{ v.total | pesos }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center; padding:40px 0; color:var(--gray);">
+    <p style="font-size:2.5rem;">🛒</p>
+    <p style="margin-top:8px;">Sin ventas registradas en este período.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+const EVOLUCION   = {{ evolucion_json  | safe }};
+const CATEGORIAS  = {{ categorias_json | safe }};
+
+const PALETTE = [
+  '#4361EE','#E63946','#2ECC71','#F78221','#6C757D',
+  '#17A2B8','#FFC107','#7952B3','#20C997','#FD7E14',
+];
+
+const tickPesos = v => '$' + Number(v).toLocaleString('es-AR');
+
+// ── Gráfico de evolución ──────────────────────────────────────────────────────
+new Chart(document.getElementById('chartEvolucion'), {
+  type: 'bar',
+  data: {
+    labels: EVOLUCION.map(e => e.label),
+    datasets: [
+      {
+        label: 'Ingresos',
+        data: EVOLUCION.map(e => e.ingresos),
+        backgroundColor: '#4361EE99',
+        borderColor: '#4361EE',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Gastos',
+        data: EVOLUCION.map(e => e.gastos),
+        backgroundColor: '#E6394699',
+        borderColor: '#E63946',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${tickPesos(ctx.raw)}` } },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { callback: tickPesos, maxTicksLimit: 6 },
+        grid: { color: '#dee2e622' },
+      },
+      x: { grid: { display: false } },
+    },
+  },
+});
+
+// ── Gráfico de categorías ─────────────────────────────────────────────────────
+if (CATEGORIAS.length) {
+  const colors = CATEGORIAS.map((_, i) => PALETTE[i % PALETTE.length]);
+
+  new Chart(document.getElementById('chartCategorias'), {
+    type: 'doughnut',
+    data: {
+      labels: CATEGORIAS.map(c => c.nombre),
+      datasets: [{
+        data: CATEGORIAS.map(c => c.total),
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#fff',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${tickPesos(ctx.raw)}` } },
+      },
+      cutout: '62%',
+    },
+  });
+
+  // Sincronizar colores con los puntos de la tabla
+  colors.forEach((color, i) => {
+    const dot = document.getElementById(`cat-dot-${i}`);
+    if (dot) dot.style.background = color;
+  });
+}
+</script>
+{% endblock %}

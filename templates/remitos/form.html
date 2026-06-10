@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <h2>{{ titulo }}</h2>
+  <a href="{{ url_for('remitos.lista') }}" class="btn-secondary">← Volver</a>
+</div>
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {% if remito %}
+    <!-- Hidden: campos que no se editan pero se mantienen -->
+  {% else %}
+    <input type="hidden" name="presupuesto_id" value="{{ prefill.get('presupuesto_id', '') }}">
+    <input type="hidden" name="venta_id"       value="{{ prefill.get('venta_id', '') }}">
+    <input type="hidden" name="stock_descontado" value="{{ prefill.get('stock_descontado', 0) }}">
+  {% endif %}
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+    <!-- Columna izquierda -->
+    <div>
+      <label>Cliente (opcional)</label>
+      <select name="cliente_id" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px;">
+        <option value="">— Sin cliente —</option>
+        {% for c in clientes %}
+        <option value="{{ c.id }}"
+          {% if remito and remito.cliente_id == c.id %}selected
+          {% elif prefill.get('cliente_id') == c.id %}selected{% endif %}>
+          {{ c.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+
+      <label>Destinatario *</label>
+      <input type="text" name="destinatario" required maxlength="200"
+             value="{{ remito.destinatario if remito else prefill.get('destinatario','') }}"
+             placeholder="Nombre de quien recibe">
+
+      <label>Dirección de entrega *</label>
+      <input type="text" name="direccion" required maxlength="300"
+             value="{{ remito.direccion if remito else prefill.get('direccion','') }}"
+             placeholder="Calle, número, ciudad">
+    </div>
+
+    <!-- Columna derecha -->
+    <div>
+      <label>Fecha de entrega estimada</label>
+      <input type="date" name="fecha_entrega_estimada"
+             value="{{ remito.fecha_entrega_estimada if remito else prefill.get('fecha_entrega_estimada','') }}">
+
+      <label>Bultos</label>
+      <input type="number" name="bultos" min="1" value="{{ remito.bultos if remito else 1 }}">
+
+      <label>Peso (kg)</label>
+      <input type="number" name="peso" step="0.01" min="0"
+             value="{{ remito.peso if remito else '' }}"
+             placeholder="Opcional">
+
+      <label>Observaciones</label>
+      <textarea name="observaciones" rows="3"
+                style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; resize:vertical;">{{ remito.observaciones if remito else prefill.get('observaciones','') }}</textarea>
+    </div>
+  </div>
+
+  <!-- Items -->
+  <div style="margin-top:28px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="font-size:1.1rem;">Ítems del remito</h3>
+      <button type="button" onclick="addRow()" class="btn-secondary" style="width:auto; padding:6px 16px;">+ Agregar ítem</button>
+    </div>
+
+    <div id="busqueda-producto" style="margin-bottom:12px; position:relative; max-width:400px;">
+      <input type="text" id="search-input" placeholder="Buscar producto por nombre o SKU..."
+             style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px;"
+             autocomplete="off">
+      <div id="search-results"
+           style="display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+                  background:white; border:1px solid var(--border); border-radius:8px;
+                  max-height:220px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.12);">
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table id="items-table">
+        <thead>
+          <tr>
+            <th style="min-width:280px;">Descripción</th>
+            <th style="width:120px;">Cantidad</th>
+            <th style="width:60px;"></th>
+          </tr>
+        </thead>
+        <tbody id="items-body">
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+    <p id="no-items-msg" style="color:var(--gray); display:none;">Sin ítems. Buscá un producto o agregá uno manualmente.</p>
+  </div>
+
+  <div style="margin-top:28px; display:flex; gap:12px;">
+    <button type="submit" class="btn-primary" style="width:auto; padding:10px 32px;">
+      {% if remito %}Guardar cambios{% else %}Crear Remito{% endif %}
+    </button>
+    <a href="{{ url_for('remitos.lista') }}" class="btn-secondary" style="padding:10px 24px;">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRODUCTOS = {{ productos_json | safe }};
+let itemsData  = {{ items_existentes | safe }};
+
+function renderRows() {
+  const tbody = document.getElementById('items-body');
+  tbody.innerHTML = '';
+  itemsData.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" name="item_producto_id" value="${item.producto_id ?? ''}">
+        <input type="text"   name="item_descripcion" value="${escHtml(item.descripcion)}"
+               style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px;" required>
+      </td>
+      <td>
+        <input type="number" name="item_cantidad" value="${item.cantidad}" min="0.01" step="0.01"
+               style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px;" required>
+      </td>
+      <td>
+        <button type="button" onclick="removeRow(${idx})"
+                style="background:var(--danger); color:white; border:none; padding:6px 10px;
+                       border-radius:6px; cursor:pointer; font-size:.9rem;">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('no-items-msg').style.display = itemsData.length ? 'none' : 'block';
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function addRow(item) {
+  itemsData.push(item || { producto_id: null, descripcion: '', cantidad: 1 });
+  renderRows();
+}
+
+function removeRow(idx) {
+  itemsData.splice(idx, 1);
+  renderRows();
+}
+
+// Buscador de productos
+const searchInput   = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  if (q.length < 2) { searchResults.style.display = 'none'; return; }
+  const matches = PRODUCTOS.filter(p =>
+    p.descripcion.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+  ).slice(0, 12);
+  if (!matches.length) { searchResults.style.display = 'none'; return; }
+  searchResults.innerHTML = matches.map(p =>
+    `<div class="search-item" data-id="${p.id}" data-desc="${escHtml(p.descripcion)}"
+          style="padding:10px 14px; cursor:pointer; border-bottom:1px solid #eee; font-size:.9rem;">
+       <strong>${escHtml(p.sku)}</strong> — ${escHtml(p.descripcion)}
+     </div>`
+  ).join('');
+  searchResults.style.display = 'block';
+});
+
+searchResults.addEventListener('click', e => {
+  const item = e.target.closest('.search-item');
+  if (!item) return;
+  addRow({
+    producto_id: parseInt(item.dataset.id),
+    descripcion: item.dataset.desc,
+    cantidad:    1,
+  });
+  searchInput.value       = '';
+  searchResults.style.display = 'none';
+});
+
+document.addEventListener('click', e => {
+  if (!searchResults.contains(e.target) && e.target !== searchInput) {
+    searchResults.style.display = 'none';
+  }
+});
+
+// Hover en resultados
+document.addEventListener('mouseover', e => {
+  const item = e.target.closest('.search-item');
+  if (item) item.style.background = '#f0f4ff';
+});
+document.addEventListener('mouseout', e => {
+  const item = e.target.closest('.search-item');
+  if (item) item.style.background = '';
+});
+
+renderRows();
+</script>
+{% endblock %}

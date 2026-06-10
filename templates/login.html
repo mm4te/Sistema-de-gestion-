@@ -21,6 +21,7 @@
     {% endwith %}
 
     <form method="POST" style="display: flex; flex-direction: column; gap: 16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="username">Usuario</label>
         <input type="text" id="username" name="username" required>

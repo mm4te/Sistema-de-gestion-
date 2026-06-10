@@ -32,6 +32,7 @@
       {% endwith %}
 
       <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="sku">Código del producto *</label>
         <input type="text" id="sku" name="sku" required placeholder="Ej: P001">
 

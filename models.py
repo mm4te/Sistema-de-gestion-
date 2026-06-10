@@ -89,6 +89,228 @@ def init_db():
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO clientes (nombre, telefono, cuit) VALUES ('Consumidor Final', '', '')")
 
+    # ── Presupuestos ────────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero TEXT UNIQUE NOT NULL,
+        cliente_id INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        fecha_validez TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'borrador',
+        total REAL NOT NULL DEFAULT 0,
+        observaciones TEXT,
+        creado_por INTEGER,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS presupuesto_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        presupuesto_id INTEGER NOT NULL,
+        producto_id INTEGER,
+        descripcion TEXT NOT NULL,
+        cantidad REAL NOT NULL DEFAULT 1,
+        precio_unitario REAL NOT NULL DEFAULT 0,
+        subtotal REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id),
+        FOREIGN KEY (producto_id) REFERENCES productos(id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS presupuesto_historial (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        presupuesto_id INTEGER NOT NULL,
+        estado_anterior TEXT,
+        estado_nuevo TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        usuario_id INTEGER,
+        nota TEXT,
+        FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id)
+    )''')
+
+    # ── Remitos ──────────────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS remitos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero TEXT UNIQUE NOT NULL,
+        cliente_id INTEGER,
+        presupuesto_id INTEGER,
+        venta_id INTEGER,
+        destinatario TEXT NOT NULL,
+        direccion TEXT NOT NULL,
+        bultos INTEGER DEFAULT 1,
+        peso REAL,
+        estado TEXT NOT NULL DEFAULT 'pendiente',
+        fecha TEXT NOT NULL,
+        fecha_entrega_estimada TEXT,
+        fecha_entrega_real TEXT,
+        recibido_por TEXT,
+        observaciones TEXT,
+        stock_descontado INTEGER DEFAULT 0,
+        creado_por INTEGER,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+        FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id),
+        FOREIGN KEY (venta_id) REFERENCES ventas(id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS remito_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remito_id INTEGER NOT NULL,
+        producto_id INTEGER,
+        descripcion TEXT NOT NULL,
+        cantidad REAL NOT NULL DEFAULT 1,
+        FOREIGN KEY (remito_id) REFERENCES remitos(id),
+        FOREIGN KEY (producto_id) REFERENCES productos(id)
+    )''')
+
+    # ── Gastos ───────────────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS categorias_gasto (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT UNIQUE NOT NULL,
+        descripcion TEXT,
+        activo      INTEGER DEFAULT 1
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS gastos (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        categoria_id            INTEGER NOT NULL,
+        descripcion             TEXT NOT NULL,
+        monto                   REAL NOT NULL,
+        fecha                   TEXT NOT NULL,
+        metodo_pago             TEXT,
+        es_recurrente           INTEGER DEFAULT 0,
+        frecuencia              TEXT,
+        gasto_padre_id          INTEGER,
+        fecha_prox_recurrencia  TEXT,
+        archivo_nombre          TEXT,
+        archivo_ruta            TEXT,
+        observaciones           TEXT,
+        creado_por              INTEGER,
+        FOREIGN KEY (categoria_id)   REFERENCES categorias_gasto(id),
+        FOREIGN KEY (gasto_padre_id) REFERENCES gastos(id),
+        FOREIGN KEY (creado_por)     REFERENCES usuarios(id)
+    )''')
+
+    # ── Roles y permisos ──────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS roles (
+        id          INTEGER PRIMARY KEY,
+        nombre      TEXT UNIQUE NOT NULL,
+        nivel       INTEGER NOT NULL,
+        descripcion TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS rol_permisos (
+        rol_id  INTEGER NOT NULL,
+        modulo  TEXT NOT NULL,
+        accion  TEXT NOT NULL,
+        PRIMARY KEY (rol_id, modulo, accion),
+        FOREIGN KEY (rol_id) REFERENCES roles(id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS audit_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER,
+        username   TEXT,
+        accion     TEXT NOT NULL,
+        modulo     TEXT NOT NULL,
+        detalle    TEXT,
+        ip         TEXT,
+        fecha      TEXT NOT NULL,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )''')
+
+    # Índices para acelerar búsquedas frecuentes
+    c.execute("CREATE INDEX IF NOT EXISTS idx_productos_sku ON productos(sku)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_detalle_venta_venta_id ON detalle_venta(venta_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_detalle_venta_producto_id ON detalle_venta(producto_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_clientes_dni ON clientes(dni)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_cliente ON presupuestos(cliente_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_estado ON presupuestos(estado)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_presupuesto_items ON presupuesto_items(presupuesto_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_remitos_cliente ON remitos(cliente_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_remitos_estado ON remitos(estado)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_remito_items ON remito_items(remito_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_usuario ON audit_log(usuario_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_fecha   ON audit_log(fecha)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_modulo  ON audit_log(modulo)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_fecha      ON gastos(fecha)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_categoria  ON gastos(categoria_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_recurrente ON gastos(es_recurrente)")
+
+    # ── Migrar usuarios: agregar rol_id ──────────────────────────────────────
+    columnas_usuarios = [r[1] for r in c.execute("PRAGMA table_info(usuarios)").fetchall()]
+    if 'rol_id' not in columnas_usuarios:
+        c.execute("ALTER TABLE usuarios ADD COLUMN rol_id INTEGER REFERENCES roles(id)")
+
+    # ── Seed: roles ──────────────────────────────────────────────────────────
+    _ROLES = [
+        (1, 'SuperAdmin', 1, 'Acceso total al sistema'),
+        (2, 'Admin',      2, 'Gestión completa del negocio'),
+        (3, 'Supervisor', 3, 'Supervisión de operaciones'),
+        (4, 'Vendedor',   4, 'Ventas y presupuestos'),
+        (5, 'Deposito',   5, 'Inventario y logística'),
+    ]
+    for row in _ROLES:
+        c.execute("INSERT OR IGNORE INTO roles (id, nombre, nivel, descripcion) VALUES (?,?,?,?)", row)
+
+    # ── Seed: permisos por rol (SuperAdmin no necesita filas; se chequea por nivel) ──
+    _PERMISOS = [
+        # Admin (2) — todo excepto que no puede eliminar usuarios
+        (2,'inventario','ver'),   (2,'inventario','crear'), (2,'inventario','editar'),
+        (2,'inventario','eliminar'), (2,'inventario','importar'),
+        (2,'ventas','ver'),       (2,'ventas','crear'),
+        (2,'clientes','ver'),     (2,'clientes','crear'),   (2,'clientes','editar'), (2,'clientes','eliminar'),
+        (2,'presupuestos','ver'), (2,'presupuestos','crear'),(2,'presupuestos','editar'),
+        (2,'presupuestos','eliminar'), (2,'presupuestos','cambiar_estado'),
+        (2,'remitos','ver'),      (2,'remitos','crear'),    (2,'remitos','editar'),
+        (2,'remitos','eliminar'), (2,'remitos','cambiar_estado'),
+        (2,'reportes','ver'),
+        (2,'tiendanube','ver'),   (2,'tiendanube','sincronizar'),
+        (2,'usuarios','ver'),     (2,'usuarios','crear'),   (2,'usuarios','editar'),
+        (2,'audit_log','ver'),
+        (2,'gastos','ver'),       (2,'gastos','crear'),     (2,'gastos','editar'), (2,'gastos','eliminar'),
+        (2,'resumen','ver'),
+        # Supervisor (3)
+        (3,'inventario','ver'),
+        (3,'ventas','ver'),       (3,'ventas','crear'),
+        (3,'clientes','ver'),     (3,'clientes','crear'),   (3,'clientes','editar'),
+        (3,'presupuestos','ver'), (3,'presupuestos','crear'),(3,'presupuestos','editar'),
+        (3,'presupuestos','cambiar_estado'),
+        (3,'remitos','ver'),      (3,'remitos','crear'),    (3,'remitos','editar'),
+        (3,'remitos','cambiar_estado'),
+        (3,'reportes','ver'),
+        (3,'gastos','ver'),
+        (3,'resumen','ver'),
+        # Vendedor (4)
+        (4,'inventario','ver'),
+        (4,'ventas','ver'),       (4,'ventas','crear'),
+        (4,'clientes','ver'),     (4,'clientes','crear'),
+        (4,'presupuestos','ver'), (4,'presupuestos','crear'),(4,'presupuestos','editar'),
+        (4,'presupuestos','cambiar_estado'),
+        (4,'remitos','ver'),
+        (4,'reportes','ver'),
+        # Depósito (5)
+        (5,'inventario','ver'),   (5,'inventario','crear'), (5,'inventario','editar'),
+        (5,'inventario','importar'),
+        (5,'remitos','ver'),      (5,'remitos','editar'),   (5,'remitos','cambiar_estado'),
+        (5,'clientes','ver'),
+        (5,'reportes','ver'),
+    ]
+    for row in _PERMISOS:
+        c.execute("INSERT OR IGNORE INTO rol_permisos (rol_id, modulo, accion) VALUES (?,?,?)", row)
+
+    # Usuarios existentes sin rol → SuperAdmin
+    c.execute("UPDATE usuarios SET rol_id = 1 WHERE rol_id IS NULL")
+
+    # ── Seed: categorías de gasto ─────────────────────────────────────────────
+    _CATEGORIAS = [
+        ('Alquiler',     'Alquiler del local u oficina'),
+        ('Servicios',    'Luz, gas, agua, internet, teléfono'),
+        ('Sueldos',      'Sueldos y cargas sociales del personal'),
+        ('Materiales',   'Insumos y materiales de trabajo'),
+        ('Transporte',   'Fletes, combustible y movilidad'),
+        ('Marketing',    'Publicidad y promociones'),
+        ('Impuestos',    'Impuestos, tasas y tributos'),
+        ('Mantenimiento','Reparaciones y mantenimiento'),
+        ('Bancarios',    'Comisiones y gastos bancarios'),
+        ('Otros',        'Gastos varios no categorizados'),
+    ]
+    for nombre, desc in _CATEGORIAS:
+        c.execute("INSERT OR IGNORE INTO categorias_gasto (nombre, descripcion) VALUES (?,?)", (nombre, desc))
+
     conn.commit()
     conn.close()
 
@@ -97,7 +319,7 @@ def init_db():
 
 def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=20):
     conn = get_conn()
-    condiciones = []
+    condiciones = ["activo = 1"]
     params = []
 
     if search:
@@ -106,7 +328,7 @@ def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=2
     if stock_filter == 'sin_stock':
         condiciones.append("stock = 0")
 
-    where_clause = "WHERE " + " AND ".join(condiciones) if condiciones else ""
+    where_clause = "WHERE " + " AND ".join(condiciones)
 
     order_clause = "ORDER BY id DESC"
     if orden == 'mayor':   order_clause = "ORDER BY precio DESC"

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <h2>{{ titulo }}</h2>
+  <a href="{{ url_for('usuarios.lista') }}" class="btn-secondary">← Volver</a>
+</div>
+
+<form method="post" style="max-width:500px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label>Nombre de usuario *</label>
+  <input type="text" name="username" required maxlength="80" autocomplete="off"
+         value="{{ usuario.username if usuario else '' }}"
+         placeholder="ej: maria.garcia">
+
+  <label>Contraseña {{ '(dejar vacío para no cambiar)' if usuario else '*' }}</label>
+  <input type="password" name="password"
+         {{ '' if usuario else 'required' }}
+         minlength="6"
+         autocomplete="new-password"
+         placeholder="{{ 'Nueva contraseña (mín. 6 caracteres)' if usuario else 'Mín. 6 caracteres' }}">
+
+  <label>Rol *</label>
+  <select name="rol_id" required style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:15px;">
+    {% for r in roles %}
+    <option value="{{ r.id }}"
+      {% if usuario and usuario.rol_id == r.id %}selected
+      {% elif not usuario and loop.last %}selected{% endif %}>
+      {{ r.nombre }} — {{ r.descripcion }}
+    </option>
+    {% endfor %}
+  </select>
+
+  {% if roles %}
+  <div style="background:#f8f9fa; border-radius:8px; padding:12px 16px; margin-bottom:20px; font-size:.85em; color:var(--gray);">
+    <strong>Niveles disponibles para asignar:</strong>
+    {% for r in roles %}
+    <div style="margin-top:4px;">
+      <strong style="color:var(--dark);">{{ r.nombre }}</strong> (nivel {{ r.nivel }}) — {{ r.descripcion }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex; gap:12px; margin-top:8px;">
+    <button type="submit" class="btn-primary" style="width:auto; padding:10px 32px;">
+      {{ 'Guardar cambios' if usuario else 'Crear Usuario' }}
+    </button>
+    <a href="{{ url_for('usuarios.lista') }}" class="btn-secondary" style="padding:10px 24px;">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

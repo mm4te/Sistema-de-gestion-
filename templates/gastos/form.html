@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <h2>{{ titulo }}</h2>
+  <a href="{{ url_for('gastos.lista') }}" class="btn-secondary">← Volver</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" style="max-width:680px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+    <!-- Columna izquierda -->
+    <div>
+      <label>Categoría *</label>
+      <select name="categoria_id" required style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:15px;">
+        {% for c in categorias %}
+        <option value="{{ c.id }}" {% if gasto and gasto.categoria_id == c.id %}selected{% endif %}>
+          {{ c.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+
+      <label>Descripción *</label>
+      <input type="text" name="descripcion" required maxlength="200"
+             value="{{ gasto.descripcion if gasto else '' }}"
+             placeholder="ej: Alquiler mes de julio">
+
+      <label>Monto *</label>
+      <input type="number" name="monto" required step="0.01" min="0.01"
+             value="{{ gasto.monto if gasto else '' }}"
+             placeholder="0.00">
+
+      <label>Fecha *</label>
+      <input type="date" name="fecha" required
+             value="{{ gasto.fecha if gasto else (hoy or '') }}">
+    </div>
+
+    <!-- Columna derecha -->
+    <div>
+      <label>Método de pago</label>
+      <select name="metodo_pago" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:15px;">
+        <option value="">— Sin especificar —</option>
+        {% for m in metodos_pago %}
+        <option value="{{ m }}" {% if gasto and gasto.metodo_pago == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+
+      <label>Observaciones</label>
+      <textarea name="observaciones" rows="3"
+                style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; resize:vertical; margin-bottom:15px;">{{ gasto.observaciones if gasto else '' }}</textarea>
+
+      <!-- Adjunto -->
+      <label>Adjunto (PDF, JPG, PNG — máx. 5 MB)</label>
+      {% if gasto and gasto.archivo_nombre %}
+      <div style="background:#f0f4ff; padding:10px 14px; border-radius:8px; margin-bottom:10px; font-size:.9em; display:flex; justify-content:space-between; align-items:center;">
+        <span>📎 <a href="{{ url_for('gastos.descargar_archivo', gasto_id=gasto.id) }}">{{ gasto.archivo_nombre }}</a></span>
+        <label style="display:flex; align-items:center; gap:6px; font-size:.85em; font-weight:500; margin:0; cursor:pointer;">
+          <input type="checkbox" name="borrar_archivo" value="1"> Eliminar
+        </label>
+      </div>
+      <p style="font-size:.8em; color:var(--gray); margin-bottom:8px;">Subí uno nuevo para reemplazarlo:</p>
+      {% endif %}
+      <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp"
+             style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-size:.9em;">
+    </div>
+  </div>
+
+  <!-- Recurrencia -->
+  <div style="margin-top:20px; padding:16px; background:#f8f9fa; border-radius:10px; border:1px solid var(--border);">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+      <input type="checkbox" name="es_recurrente" value="1" id="chk-recurrente"
+             {% if gasto and gasto.es_recurrente %}checked{% endif %}
+             onchange="document.getElementById('recurrencia-fields').style.display = this.checked ? 'block' : 'none'">
+      <label for="chk-recurrente" style="font-weight:600; margin:0; cursor:pointer;">
+        🔁 Gasto recurrente
+      </label>
+    </div>
+    <div id="recurrencia-fields" style="display:{% if gasto and gasto.es_recurrente %}block{% else %}none{% endif %};">
+      <label>Frecuencia</label>
+      <select name="frecuencia" style="width:100%; max-width:260px; padding:10px; border:1px solid var(--border); border-radius:8px;">
+        <option value="">— Elegir —</option>
+        {% for f in frecuencias %}
+        <option value="{{ f }}" {% if gasto and gasto.frecuencia == f %}selected{% endif %}>
+          {{ f | title }}
+        </option>
+        {% endfor %}
+      </select>
+      {% if gasto and gasto.fecha_prox_recurrencia %}
+      <p style="font-size:.85em; color:var(--gray); margin-top:8px;">
+        Próxima generación: <strong>{{ gasto.fecha_prox_recurrencia }}</strong>
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; margin-top:24px;">
+    <button type="submit" class="btn-primary" style="width:auto; padding:10px 32px;">
+      {{ 'Guardar cambios' if gasto else 'Registrar Gasto' }}
+    </button>
+    <a href="{{ url_for('gastos.lista') }}" class="btn-secondary" style="padding:10px 24px;">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
