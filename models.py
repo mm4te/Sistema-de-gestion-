@@ -68,6 +68,7 @@ def init_db():
         ("promotional_price", "REAL"),
         ("barcode", "TEXT"),
         ("imagen_url", "TEXT"),
+        ("costo", "REAL"),
     ]:
         if col not in columnas_productos:
             c.execute(f"ALTER TABLE productos ADD COLUMN {col} {definition}")
@@ -388,20 +389,20 @@ def get_productos(search=None, stock_filter=None, orden=None, page=1, per_page=2
     conn.close()
     return productos, total
 
-def add_producto(sku, descripcion, precio, stock):
+def add_producto(sku, descripcion, precio, stock, costo=None):
     conn = get_conn()
     conn.execute(
-        "INSERT INTO productos (sku, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
-        (sku, descripcion, precio, stock)
+        "INSERT INTO productos (sku, descripcion, precio, stock, costo) VALUES (?, ?, ?, ?, ?)",
+        (sku, descripcion, precio, stock, costo)
     )
     conn.commit()
     conn.close()
 
-def update_producto(producto_id, sku, descripcion, precio, stock):
+def update_producto(producto_id, sku, descripcion, precio, stock, costo=None):
     conn = get_conn()
     conn.execute(
-        "UPDATE productos SET sku = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
-        (sku, descripcion, precio, stock, producto_id)
+        "UPDATE productos SET sku = ?, descripcion = ?, precio = ?, stock = ?, costo = ? WHERE id = ?",
+        (sku, descripcion, precio, stock, costo, producto_id)
     )
     conn.commit()
 

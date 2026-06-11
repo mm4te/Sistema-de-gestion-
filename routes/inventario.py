@@ -1,7 +1,7 @@
 # routes/inventario.py
 import sqlite3
 import pandas as pd
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g
 from models import get_productos, add_producto, update_producto, delete_producto, get_producto_by_id, get_conn
 from services.tiendanube_service import importar_productos_tn
 from routes import login_required
@@ -18,9 +18,10 @@ def inventario():
     orden = request.args.get('orden', '')
     productos, total = get_productos(search_query, filtro_stock, orden, page)
     total_pages = (total + 19) // 20
-    return render_template('inventario.html', productos=productos, page=page,
+    return render_template('inventario.html', productos=productos, total=total, page=page,
                            total_pages=total_pages, search_query=search_query,
-                           filtro_stock=filtro_stock, orden=orden)
+                           filtro_stock=filtro_stock, orden=orden,
+                           puede_ver_costo=g.rol_nivel <= 3)
 
 
 @inventario_bp.route("/sync_tiendanube")
@@ -42,16 +43,20 @@ def nuevo_producto():
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
+        costo_raw = request.form.get('costo', '').strip()
         if not all([sku, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
         else:
             try:
                 precio = float(precio)
                 stock = int(stock)
-                if precio <= 0 or stock < 0:
+                costo = float(costo_raw) if costo_raw else None
+                if precio <= 0 or stock < 0 or (costo is not None and costo < 0):
                     raise ValueError
-                add_producto(sku, descripcion, precio, stock)
+                add_producto(sku, descripcion, precio, stock, costo)
                 flash("✅ Producto creado correctamente", "success")
+                if costo is not None and costo > precio:
+                    flash(f"⚠️ El costo (${costo:.2f}) supera el precio de venta (${precio:.2f}).", "warning")
                 return redirect(url_for('inventario.inventario'))
             except sqlite3.IntegrityError:
                 flash("❌ El SKU ya existe. Usa uno único.", "error")
@@ -72,16 +77,20 @@ def editar_producto(producto_id):
         descripcion = request.form.get('descripcion', '').strip()
         precio = request.form.get('precio', '').strip()
         stock = request.form.get('stock', '').strip()
+        costo_raw = request.form.get('costo', '').strip()
         if not all([sku, descripcion, precio, stock]):
             flash("❌ Todos los campos son obligatorios", "error")
         else:
             try:
                 precio = float(precio)
                 stock = int(stock)
-                if precio <= 0 or stock < 0:
+                costo = float(costo_raw) if costo_raw else None
+                if precio <= 0 or stock < 0 or (costo is not None and costo < 0):
                     raise ValueError
-                update_producto(producto_id, sku, descripcion, precio, stock)
+                update_producto(producto_id, sku, descripcion, precio, stock, costo)
                 flash("✅ Producto actualizado correctamente", "success")
+                if costo is not None and costo > precio:
+                    flash(f"⚠️ El costo (${costo:.2f}) supera el precio de venta (${precio:.2f}).", "warning")
                 return redirect(url_for('inventario.inventario'))
             except sqlite3.IntegrityError:
                 flash("❌ El SKU ya existe. Usa uno único.", "error")
