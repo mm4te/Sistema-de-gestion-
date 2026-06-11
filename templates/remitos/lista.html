@@ -30,6 +30,7 @@
       <tr>
         <th>Número</th>
         <th>Destinatario</th>
+        <th>Retira</th>
         <th>Dirección</th>
         <th>Fecha</th>
         <th>Entrega Est.</th>
@@ -42,6 +43,15 @@
       <tr>
         <td data-label="Número"><strong>{{ r.numero }}</strong></td>
         <td data-label="Destinatario">{{ r.destinatario }}</td>
+        <td data-label="Retira">
+          {% if r.retira_nombre %}
+          <span style="display:inline-flex; align-items:center; gap:4px; background:#fffbeb; border:1px solid #fbbf24; border-radius:6px; padding:2px 8px; font-size:.82em; font-weight:600; color:#92400e;">
+            👤 {{ r.retira_nombre }}
+          </span>
+          {% else %}
+          <span style="color:var(--gray); font-size:.85em;">— Cliente</span>
+          {% endif %}
+        </td>
         <td data-label="Dirección" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.direccion }}</td>
         <td data-label="Fecha">{{ r.fecha[:10] }}</td>
         <td data-label="Entrega Est.">{{ r.fecha_entrega_estimada or '—' }}</td>

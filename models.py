@@ -278,6 +278,16 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_categoria  ON gastos(categoria_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_recurrente ON gastos(es_recurrente)")
 
+    # ── Migrar remitos: campos de retiro por terceros ────────────────────────
+    columnas_remitos = [r[1] for r in c.execute("PRAGMA table_info(remitos)").fetchall()]
+    for col, definition in [
+        ("retira_nombre",        "TEXT"),
+        ("retira_dni",           "TEXT"),
+        ("retiro_observaciones", "TEXT"),
+    ]:
+        if col not in columnas_remitos:
+            c.execute(f"ALTER TABLE remitos ADD COLUMN {col} {definition}")
+
     # ── Migrar usuarios: agregar rol_id ──────────────────────────────────────
     columnas_usuarios = [r[1] for r in c.execute("PRAGMA table_info(usuarios)").fetchall()]
     if 'rol_id' not in columnas_usuarios:

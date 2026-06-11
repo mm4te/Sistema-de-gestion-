@@ -65,6 +65,31 @@
     </div>
   </div>
 
+  <!-- Datos de Retiro -->
+  <div style="margin-top:28px; border:1px solid var(--border); border-radius:10px; padding:20px; background:#fffbeb;">
+    <h3 style="font-size:1rem; margin-bottom:16px; color:#92400e;">👤 Datos de Retiro por Terceros <span style="font-weight:400; font-size:.85em;">(opcional)</span></h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div>
+        <label>Retira (nombre)</label>
+        <input type="text" name="retira_nombre" maxlength="200"
+               value="{{ remito.retira_nombre if remito and remito.retira_nombre else '' }}"
+               placeholder="Nombre completo">
+      </div>
+      <div>
+        <label>DNI del que retira</label>
+        <input type="text" name="retira_dni" maxlength="20"
+               value="{{ remito.retira_dni if remito and remito.retira_dni else '' }}"
+               placeholder="Ej: 12345678">
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label>Observaciones de retiro</label>
+      <textarea name="retiro_observaciones" rows="2"
+                style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; resize:vertical;"
+                placeholder="Ej: Pedido pagado por Juan García, autoriza retirar a María López">{{ remito.retiro_observaciones if remito and remito.retiro_observaciones else '' }}</textarea>
+    </div>
+  </div>
+
   <!-- Items -->
   <div style="margin-top:28px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">

@@ -153,7 +153,8 @@ def get_remito(remito_id):
 def crear_remito(cliente_id, destinatario, direccion, items,
                  bultos=1, peso=None, fecha_entrega_estimada=None,
                  observaciones=None, presupuesto_id=None, venta_id=None,
-                 stock_descontado=0, usuario_id=None):
+                 stock_descontado=0, usuario_id=None,
+                 retira_nombre=None, retira_dni=None, retiro_observaciones=None):
     if not items:
         return False, "El remito debe tener al menos un ítem"
     if not destinatario or not direccion:
@@ -170,12 +171,14 @@ def crear_remito(cliente_id, destinatario, direccion, items,
                 (numero, cliente_id, presupuesto_id, venta_id,
                  destinatario, direccion, bultos, peso,
                  estado, fecha, fecha_entrega_estimada,
-                 observaciones, stock_descontado, creado_por)
-            VALUES (?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?)
+                 observaciones, stock_descontado, creado_por,
+                 retira_nombre, retira_dni, retiro_observaciones)
+            VALUES (?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?,?,?,?)
         """, (numero, cliente_id or None, presupuesto_id or None, venta_id or None,
               destinatario, direccion, bultos, peso,
               fecha, fecha_entrega_estimada or None,
-              observaciones or None, stock_descontado, usuario_id))
+              observaciones or None, stock_descontado, usuario_id,
+              retira_nombre or None, retira_dni or None, retiro_observaciones or None))
 
         remito_id = cursor.lastrowid
 
@@ -204,7 +207,8 @@ def crear_remito(cliente_id, destinatario, direccion, items,
 
 def actualizar_remito(remito_id, cliente_id, destinatario, direccion, items,
                       bultos=1, peso=None, fecha_entrega_estimada=None,
-                      observaciones=None):
+                      observaciones=None,
+                      retira_nombre=None, retira_dni=None, retiro_observaciones=None):
     if not items:
         return False, "El remito debe tener al menos un ítem"
 
@@ -221,11 +225,14 @@ def actualizar_remito(remito_id, cliente_id, destinatario, direccion, items,
         conn.execute("""
             UPDATE remitos
             SET cliente_id=?, destinatario=?, direccion=?,
-                bultos=?, peso=?, fecha_entrega_estimada=?, observaciones=?
+                bultos=?, peso=?, fecha_entrega_estimada=?, observaciones=?,
+                retira_nombre=?, retira_dni=?, retiro_observaciones=?
             WHERE id=?
         """, (cliente_id or None, destinatario, direccion,
               bultos, peso, fecha_entrega_estimada or None,
-              observaciones or None, remito_id))
+              observaciones or None,
+              retira_nombre or None, retira_dni or None, retiro_observaciones or None,
+              remito_id))
 
         conn.execute("DELETE FROM remito_items WHERE remito_id = ?", (remito_id,))
         for item in items:

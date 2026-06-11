@@ -62,6 +62,19 @@
   </div>
 </div>
 
+{% if r.retira_nombre %}
+<div style="margin-bottom:24px; border:1px solid #fbbf24; border-radius:10px; padding:18px; background:#fffbeb;">
+  <h3 style="font-size:1rem; margin-bottom:12px; color:#92400e;">👤 Datos de Retiro</h3>
+  <p><strong>Retira:</strong> {{ r.retira_nombre }}</p>
+  {% if r.retira_dni %}
+  <p style="margin-top:6px;"><strong>DNI:</strong> {{ r.retira_dni }}</p>
+  {% endif %}
+  {% if r.retiro_observaciones %}
+  <p style="margin-top:6px;"><strong>Obs:</strong> {{ r.retiro_observaciones }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if r.observaciones %}
 <div class="card" style="margin-bottom:24px;">
   <strong>Observaciones:</strong>

@@ -109,6 +109,9 @@ def nuevo():
         presupuesto_id         = request.form.get('presupuesto_id', type=int)
         venta_id               = request.form.get('venta_id', type=int)
         stock_descontado       = request.form.get('stock_descontado', 0, type=int)
+        retira_nombre          = request.form.get('retira_nombre', '').strip() or None
+        retira_dni             = request.form.get('retira_dni', '').strip() or None
+        retiro_observaciones   = request.form.get('retiro_observaciones', '').strip() or None
         items                  = _parse_items(request.form)
 
         if not destinatario:
@@ -131,6 +134,9 @@ def nuevo():
                 venta_id=venta_id,
                 stock_descontado=stock_descontado,
                 usuario_id=session.get('user_id'),
+                retira_nombre=retira_nombre,
+                retira_dni=retira_dni,
+                retiro_observaciones=retiro_observaciones,
             )
             if ok:
                 flash("✅ Remito creado correctamente", "success")
@@ -186,6 +192,9 @@ def editar(remito_id):
         peso                   = request.form.get('peso', type=float)
         fecha_entrega_estimada = request.form.get('fecha_entrega_estimada', '').strip() or None
         observaciones          = request.form.get('observaciones', '').strip() or None
+        retira_nombre          = request.form.get('retira_nombre', '').strip() or None
+        retira_dni             = request.form.get('retira_dni', '').strip() or None
+        retiro_observaciones   = request.form.get('retiro_observaciones', '').strip() or None
         items_form             = _parse_items(request.form)
 
         if not destinatario:
@@ -197,7 +206,10 @@ def editar(remito_id):
         else:
             ok, result = actualizar_remito(
                 remito_id, cliente_id, destinatario, direccion, items_form,
-                bultos, peso, fecha_entrega_estimada, observaciones
+                bultos, peso, fecha_entrega_estimada, observaciones,
+                retira_nombre=retira_nombre,
+                retira_dni=retira_dni,
+                retiro_observaciones=retiro_observaciones,
             )
             if ok:
                 flash("✅ Remito actualizado", "success")
