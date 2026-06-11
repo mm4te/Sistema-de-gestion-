@@ -12,6 +12,9 @@
 </head>
 <body>
   <div class="layout">
+    <button id="btn-menu" class="btn-hamburguesa" aria-label="Abrir menú">
+      <i class="bi bi-list"></i>
+    </button>
     <div class="sidebar">
       <h2><span>Comenda Deco</span></h2>
 
@@ -97,5 +100,19 @@
     </div>
   </div>
   {% block scripts %}{% endblock %}
+  <div id="sidebar-overlay"></div>
+  <script>
+    (function () {
+      var btn     = document.getElementById('btn-menu');
+      var sidebar = document.querySelector('.sidebar');
+      var overlay = document.getElementById('sidebar-overlay');
+      function openSidebar()  { sidebar.classList.add('open');    overlay.classList.add('active'); }
+      function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
+      btn.addEventListener('click', function () {
+        sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+      });
+      overlay.addEventListener('click', closeSidebar);
+    })();
+  </script>
 </body>
 </html>

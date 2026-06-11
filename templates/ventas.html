@@ -5,29 +5,139 @@
 <style>
   .carrito-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    gap: 12px;
+    align-items: flex-start;
     padding: 12px;
     border: 1px solid #dee2e6;
     border-radius: 8px;
     margin: 8px 0;
     background: #f8f9fa;
   }
-  .carrito-item-info { flex: 1; }
-  .carrito-item-actions {
+  .ci-img {
+    width: 48px; height: 48px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #F3F4F6;
+    flex-shrink: 0;
     display: flex;
-    gap: 8px;
-    margin-left: 15px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #E5E7EB;
   }
-  .btn-small {
-    padding: 6px 10px;
-    font-size: 0.9rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+  .ci-img img { width: 100%; height: 100%; object-fit: cover; }
+  .ci-img-placeholder { font-size: 1.4rem; color: #D1D5DB; }
+  .ci-body { flex: 1; min-width: 0; }
+  .ci-nombre { font-weight: 600; font-size: 0.88rem; margin-bottom: 6px; word-break: break-word; }
+  .ci-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: #374151;
+    margin-bottom: 6px;
   }
-  .btn-edit  { background: #4361ee; color: white; }
-  .btn-delete { background: #e63946; color: white; }
+  .ci-input-precio {
+    width: 120px; padding: 4px 6px; margin-bottom: 0;
+    border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;
+  }
+  .ci-input-cant {
+    width: 56px; padding: 4px 6px; margin-bottom: 0;
+    border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; text-align: center;
+  }
+  .ci-subtotal { font-weight: 600; white-space: nowrap; }
+  .ci-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ci-btn {
+    padding: 5px 10px; border: none; border-radius: 5px;
+    cursor: pointer; font-size: 0.82rem; font-weight: 600;
+    width: auto; margin-bottom: 0; white-space: nowrap;
+  }
+  .ci-btn-edit   { background: #4361ee; color: white; }
+  .ci-btn-edit:hover { background: #3451d1; }
+  .ci-btn-delete { background: #e63946; color: white; }
+  .ci-btn-delete:hover { background: #c62d38; }
+  .ci-form-del { margin: 0; }
+
+  /* ── Grilla de productos ──────────────────────────────────────── */
+  #productos-lista {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 992px) {
+    #productos-lista { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 576px) {
+    #productos-lista { grid-template-columns: 1fr; }
+  }
+
+  /* Override del .product-card global */
+  .product-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: white;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    transition: box-shadow 0.15s;
+  }
+  .product-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.09); }
+
+  .pc-imagen {
+    width: 100%;
+    height: 160px;
+    background: #F9FAFB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .pc-imagen img { width: 100%; height: 100%; object-fit: contain; }
+  .pc-placeholder { font-size: 2.5rem; color: #D1D5DB; }
+
+  .pc-body {
+    padding: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .pc-nombre { font-weight: 700; font-size: 0.88rem; color: #111827; margin-bottom: 2px; line-height: 1.3; }
+  .pc-sku    { font-size: 0.75rem; color: #9CA3AF; margin-bottom: 6px; }
+  .pc-precio { font-size: 0.9rem; font-weight: 700; color: #111827; }
+  .pc-stock  { font-size: 0.78rem; color: #6B7280; }
+  .pc-badge-sin-stock {
+    display: inline-block;
+    background: #FEE2E2; color: #DC2626;
+    font-size: 0.72rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px;
+    margin: 4px 0 8px;
+    align-self: flex-start;
+  }
+  .pc-footer {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid #F3F4F6;
+  }
+  .pc-form { display: flex; gap: 6px; align-items: center; margin: 0; }
+  .pc-input-cant {
+    width: 60px; padding: 6px; margin-bottom: 0;
+    border: 1px solid #dee2e6; border-radius: 6px;
+    font-size: 0.9rem; text-align: center;
+  }
+  .pc-btn-agregar {
+    flex: 1; padding: 7px 6px; margin-bottom: 0;
+    background: #4361ee; color: white;
+    border: none; border-radius: 6px;
+    cursor: pointer; font-size: 0.82rem; font-weight: 600;
+    transition: background 0.15s;
+    width: auto;
+  }
+  .pc-btn-agregar:hover:not(:disabled) { background: #3451d1; }
+  .pc-btn-agregar:disabled { background: #D1D5DB; cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -61,18 +171,36 @@
     <h3>Productos disponibles ({{ productos|length }})</h3>
     <div id="productos-lista">
       {% for p in productos %}
+      {% set sin_stock = (p[4] is not none and p[4] <= 0) %}
       <div class="product-card" data-codigo="{{ p[1] }}" data-descripcion="{{ p[2] }}">
-        <strong>{{ p[1] }} - {{ p[2] }}</strong>
-        <small>Precio: ${{ "%.2f"|format(p[3]) }} | Stock: {{ p[4] }}</small>
-        <form method="post" action="/agregar_al_carrito"
-          style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="producto_id" value="{{ p[0] }}">
-          <input type="number" name="cantidad" min="1" max="{{ p[4] }}" value="1"
-            style="width: 80px; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px;" required>
-          <button type="submit"
-            style="padding: 6px 12px; background: #4361ee; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">➕ Agregar</button>
-        </form>
+        <div class="pc-imagen">
+          {% if p['imagen_url'] %}
+          <img src="{{ p['imagen_url'] }}" alt="{{ p[2] }}" loading="lazy">
+          {% else %}
+          <i class="bi bi-box-seam pc-placeholder"></i>
+          {% endif %}
+        </div>
+        <div class="pc-body">
+          <div class="pc-nombre">{{ p[2] }}</div>
+          <div class="pc-sku">{{ p[1] }}</div>
+          <div style="margin-bottom: 6px;">
+            <span class="pc-precio">${{ "%.2f"|format(p[3]) }}</span>
+            <span class="pc-stock">&nbsp;·&nbsp; Stock: {% if p[4] is none %}—{% else %}{{ p[4] }}{% endif %}</span>
+          </div>
+          {% if sin_stock %}<span class="pc-badge-sin-stock">Sin stock</span>{% endif %}
+          <div class="pc-footer">
+            <form method="post" action="/agregar_al_carrito" class="pc-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="producto_id" value="{{ p[0] }}">
+              <input type="number" name="cantidad" class="pc-input-cant"
+                min="1" {% if p[4] is not none %}max="{{ p[4] }}"{% endif %}
+                value="1" required {% if sin_stock %}disabled{% endif %}>
+              <button type="submit" class="pc-btn-agregar" {% if sin_stock %}disabled{% endif %}>
+                ➕ Agregar
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -85,34 +213,49 @@
     {% if carrito %}
     <div style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px;">
       {% for item in carrito %}
+      {% set img_url = imagenes.get(item.id) %}
+      <!-- Formas ocultas: campos hidden (csrf + index). Inputs y botones se vinculan via form="id" -->
+      <form id="fp-{{ loop.index0 }}" method="post" action="/actualizar_precio_carrito" style="display:none">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="index" value="{{ loop.index0 }}">
+      </form>
+      <form id="fc-{{ loop.index0 }}" method="post" action="/actualizar_carrito" style="display:none">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="index" value="{{ loop.index0 }}">
+      </form>
       <div class="carrito-item">
-        <div class="carrito-item-info">
-          <strong>{{ item.descripcion }} ({{ item.sku }})</strong><br>
-
-          <!-- Formulario para editar el precio -->
-          <form method="post" action="/actualizar_precio_carrito" style="display: inline; margin-right: 10px;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="index" value="{{ loop.index0 }}">
-            <input type="number" name="nuevo_precio" value="{{ '%.2f'|format(item.precio) }}" step="0.01" min="0.01"
-              style="width: 80px; padding: 4px; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px;" required>
-            <button type="submit" class="btn-small btn-edit" style="padding: 4px 8px;">✏️</button>
-          </form>
-
-          x {{ item.cantidad }} = ${{ "%.2f"|format(item.precio * item.cantidad) }}
+        <div class="ci-img">
+          {% if img_url %}
+          <img src="{{ img_url }}" alt="{{ item.descripcion }}">
+          {% else %}
+          <i class="bi bi-box-seam ci-img-placeholder"></i>
+          {% endif %}
         </div>
-        <div class="carrito-item-actions">
-          <form method="post" action="/actualizar_carrito" style="display: inline; margin-right: 8px;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="index" value="{{ loop.index0 }}">
-            <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1"
-              style="width: 60px; padding: 4px;" required>
-            <button type="submit" class="btn-small btn-edit">🔄</button>
-          </form>
-          <form method="post" action="/eliminar_del_carrito/{{ loop.index0 }}" style="display: inline;"
-            onsubmit="return confirm('¿Eliminar del carrito?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn-small btn-delete">🗑️</button>
-          </form>
+        <div class="ci-body">
+          <div class="ci-nombre">
+            {{ item.descripcion }}
+            <span style="color:#9CA3AF; font-weight:400;">({{ item.sku }})</span>
+          </div>
+          <div class="ci-row">
+            <span style="color:#6B7280;">$</span>
+            <input type="number" name="nuevo_precio" form="fp-{{ loop.index0 }}"
+              value="{{ '%.2f'|format(item.precio) }}" step="0.01" min="0.01"
+              class="ci-input-precio" required>
+            <span style="color:#6B7280; padding:0 2px;">×</span>
+            <input type="number" name="cantidad" form="fc-{{ loop.index0 }}"
+              value="{{ item.cantidad }}" min="1"
+              class="ci-input-cant" required>
+            <span class="ci-subtotal">= ${{ "%.2f"|format(item.precio * item.cantidad) }}</span>
+          </div>
+          <div class="ci-actions">
+            <button type="submit" form="fp-{{ loop.index0 }}" class="ci-btn ci-btn-edit">✏️ Precio</button>
+            <button type="submit" form="fc-{{ loop.index0 }}" class="ci-btn ci-btn-edit">🔄 Cant.</button>
+            <form method="post" action="/eliminar_del_carrito/{{ loop.index0 }}" class="ci-form-del"
+              onsubmit="return confirm('¿Eliminar del carrito?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="ci-btn ci-btn-delete">🗑️</button>
+            </form>
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -156,7 +299,7 @@
     document.querySelectorAll('.product-card').forEach(card => {
       const codigo = card.dataset.codigo.toLowerCase();
       const descripcion = card.dataset.descripcion.toLowerCase();
-      card.style.display = (codigo.includes(query) || descripcion.includes(query)) ? 'block' : 'none';
+      card.style.display = (codigo.includes(query) || descripcion.includes(query)) ? 'flex' : 'none';
     });
   });
 </script>

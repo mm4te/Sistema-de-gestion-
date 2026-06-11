@@ -22,14 +22,17 @@ def ventas():
     conn = get_conn()
     clientes = conn.execute("SELECT id, nombre FROM clientes").fetchall()
     productos = conn.execute(
-        "SELECT id, sku, descripcion, precio, stock FROM productos"
+        "SELECT id, sku, descripcion, precio, stock, imagen_url FROM productos"
         " WHERE (stock > 0 OR stock IS NULL) AND activo = 1"
     ).fetchall()
+    img_rows = conn.execute("SELECT id, imagen_url FROM productos").fetchall()
+    imagenes = {row['id']: row['imagen_url'] for row in img_rows}
     conn.close()
     carrito = session.get('carrito', [])
     total = sum(item['precio'] * item['cantidad'] for item in carrito)
     return render_template('ventas.html', clientes=clientes, productos=productos,
                            carrito=carrito, total=total,
+                           imagenes=imagenes,
                            cliente_id_seleccionado=cliente_id)
 
 

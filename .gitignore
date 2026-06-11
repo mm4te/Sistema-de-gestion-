@@ -6,3 +6,5 @@ crear_usuario.py
 generar_ejemplo.py
 limpiar_db.py
 registrar_webhook.py
+clave_privada.key
+solicitud.csr

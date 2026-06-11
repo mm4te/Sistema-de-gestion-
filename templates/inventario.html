@@ -67,7 +67,7 @@
       <tbody>
         {% for p in productos %}
           <tr>
-            <td><img src="{{ p[11] }}" alt="{{ p[2] }}" style="max-width: 100px; max-height: 100px;"></td>
+            <td><img src="{{ p['imagen_url'] }}" alt="{{ p[2] }}" style="max-width: 100px; max-height: 100px;"></td>
             <td data-label="Código">{{ p[1] }}</td>
             <td data-label="Descripción">{{ p[2] }}</td>
             <td data-label="Precio">$ {{ p[3] | pesos }}</td>
