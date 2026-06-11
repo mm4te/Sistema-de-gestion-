@@ -18,6 +18,95 @@ ACCESS_TOKEN = os.getenv("TN_ACCESS_TOKEN")
 WEBHOOK_SECRET = os.getenv("TN_WEBHOOK_SECRET")
 
 
+def _cancelar_venta_por_orden(order_id):
+    """Cancela la venta local correspondiente a una orden de Tiendanube.
+
+    Mismo flujo que la cancelación manual: estado → stock → caja → auditoría,
+    todo en un único commit. Si la venta no existe o ya está cancelada, no hace nada.
+    """
+    conn = get_conn()
+    try:
+        venta = conn.execute(
+            "SELECT id, total, estado, metodo_pago FROM ventas WHERE order_id = ?",
+            (str(order_id),)
+        ).fetchone()
+
+        if not venta:
+            logger.info("Cancelación TN: orden %s no existe en el sistema, ignorando", order_id)
+            return
+
+        if venta['estado'] == 'cancelada':
+            logger.info("Cancelación TN: venta #%s (orden %s) ya está cancelada, ignorando",
+                        venta['id'], order_id)
+            return
+
+        venta_id = venta['id']
+
+        items = conn.execute(
+            "SELECT producto_id, cantidad FROM detalle_venta WHERE venta_id = ?",
+            (venta_id,)
+        ).fetchall()
+
+        conn.execute(
+            "UPDATE ventas SET estado = 'cancelada', motivo_cancelacion = ? WHERE id = ?",
+            ("Cancelación automática por Tiendanube", venta_id)
+        )
+        for item in items:
+            conn.execute(
+                "UPDATE productos SET stock = stock + ? WHERE id = ?",
+                (item['cantidad'], item['producto_id'])
+            )
+
+        from services.caja_service import registrar_movimiento_en_conn
+        registrar_movimiento_en_conn(
+            conn, 'egreso', 'cancelacion', venta_id,
+            f"Cancelación automática Tienda Nube #{order_id}",
+            venta['total'], venta['metodo_pago']
+        )
+
+        conn.commit()
+        logger.info("Venta #%s (orden TN %s) cancelada automáticamente, stock revertido", venta_id, order_id)
+
+        try:
+            from services.usuarios_service import registrar_auditoria
+            registrar_auditoria(
+                None, 'tiendanube',
+                'cancelar_venta', 'ventas',
+                detalle=f"Venta #{venta_id} cancelada automáticamente por Tiendanube. "
+                        f"Orden TN: {order_id}. Total: ${venta['total']:.2f}."
+            )
+        except Exception:
+            pass
+
+    except Exception:
+        conn.rollback()
+        logger.exception("Error cancelando venta por orden TN %s", order_id)
+    finally:
+        conn.close()
+
+
+def _fetch_order(order_id):
+    """Obtiene la orden desde la API de Tiendanube. Devuelve el dict o None."""
+    if not STORE_ID or not ACCESS_TOKEN:
+        logger.error("Variables de entorno TN_STORE_ID / TN_ACCESS_TOKEN no configuradas")
+        return None
+    url = f"https://api.tiendanube.com/v1/{STORE_ID}/orders/{order_id}"
+    headers = {
+        "Authentication": f"bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+        "User-Agent": "Comenda App (mateopatatian@gmail.com)"
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+    except requests.RequestException as e:
+        logger.error("Error conectando con TiendaNube para orden %s: %s", order_id, e)
+        return None
+    if r.status_code != 200:
+        logger.error("Error obteniendo orden %s: status %s - %s", order_id, r.status_code, r.text)
+        return None
+    return r.json()
+
+
 def obtener_o_crear_cliente(cursor, order):
     customer = order.get("customer") or {}
     if not isinstance(customer, dict):
@@ -70,8 +159,28 @@ def webhook_tiendanube():
     evento = data.get("event")
     order_id = data.get("id")
 
-    logger.info("Webhook recibido: evento=%s, order_id=%s", evento, order_id)
+    logger.info("Webhook Tiendanube recibido: %s - orden %s", evento, order_id)
 
+    # ── Cancelación directa ───────────────────────────────────────────────────
+    if evento == "order/cancelled":
+        _cancelar_venta_por_orden(order_id)
+        return jsonify({"ok": True})
+
+    # ── Actualización: verificar si la orden quedó cancelada ──────────────────
+    if evento == "order/updated":
+        order = _fetch_order(order_id)
+        if order:
+            status         = order.get("status", "")
+            payment_status = order.get("payment_status", "")
+            if status == "cancelled" or payment_status in ("refunded", "voided"):
+                logger.info(
+                    "Orden %s figura cancelada en TN (status=%s, payment=%s), procesando",
+                    order_id, status, payment_status
+                )
+                _cancelar_venta_por_orden(order_id)
+        return jsonify({"ok": True})
+
+    # ── Orden pagada: registrar venta ─────────────────────────────────────────
     if evento != "order/paid":
         return jsonify({"ok": True})
 
@@ -79,24 +188,9 @@ def webhook_tiendanube():
         logger.error("Variables de entorno TN_STORE_ID / TN_ACCESS_TOKEN no configuradas")
         return jsonify({"error": "configuracion incompleta"}), 500
 
-    url = f"https://api.tiendanube.com/v1/{STORE_ID}/orders/{order_id}"
-    headers = {
-        "Authentication": f"bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "Comenda App (mateopatatian@gmail.com)"
-    }
-
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-    except requests.RequestException as e:
-        logger.error("Error conectando con TiendaNube: %s", e)
-        return jsonify({"error": "conexion fallida"}), 500
-
-    if r.status_code != 200:
-        logger.error("Error obteniendo orden %s: %s", order_id, r.text)
+    order = _fetch_order(order_id)
+    if not order:
         return jsonify({"error": "no se pudo obtener la orden"}), 500
-
-    order = r.json()
 
     try:
         conn = get_conn()
@@ -168,7 +262,7 @@ def webhook_tiendanube():
         conn.close()
         logger.info("Orden %s procesada correctamente", order_id)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error procesando webhook para orden %s", order_id)
         return jsonify({"error": "error interno"}), 500
 
