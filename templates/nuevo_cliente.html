@@ -6,29 +6,233 @@
 
 <h1 style="margin: 16px 0;">➕ Nuevo Cliente</h1>
 
-<form method="post">
+<form method="post" id="form-cliente">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
   <label for="nombre">Nombre *</label>
   <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez">
 
   <label for="tipo">Tipo de cliente *</label>
-  <select id="tipo" name="tipo" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
+  <select id="tipo" name="tipo"
+    style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
     <option value="0">🛍️ Minorista</option>
     <option value="1">🏭 Mayorista</option>
   </select>
 
-  <label for="dni">DNI</label>
-  <input type="text" id="dni" name="dni" placeholder="Ej: 12345678">
+  <!-- ── Sección exclusiva Minorista ─────────────────────────────────── -->
+  <div id="sec-minorista">
+    <label for="dni">DNI</label>
+    <input type="text" id="dni" name="dni" placeholder="Ej: 12345678">
+  </div>
 
+  <!-- ── Siempre visible ──────────────────────────────────────────────── -->
   <label for="telefono">Teléfono</label>
   <input type="text" id="telefono" name="telefono" placeholder="Ej: +54 9 11 1234-5678">
 
   <label for="email">Email</label>
   <input type="email" id="email" name="email" placeholder="Ej: juan@email.com">
 
-  <label for="cuit">CUIT</label>
-  <input type="text" id="cuit" name="cuit" placeholder="Ej: 30-XXXXXXXX-X">
+  <!-- ── Sección exclusiva Mayorista ────────────────────────────────── -->
+  <div id="sec-mayorista" style="display:none">
+
+    <label for="cuit">CUIT</label>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+      <input type="text" id="cuit" name="cuit" placeholder="XX-XXXXXXXX-X"
+        maxlength="13" inputmode="numeric"
+        style="flex:1; margin-bottom:0;">
+      <button type="button" id="btn-afip" disabled
+        style="padding:9px 14px; background:#4361ee; color:white; border:none;
+               border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600;
+               white-space:nowrap; width:auto; flex-shrink:0;">
+        <span id="afip-label">🔍 Consultar AFIP</span>
+        <span id="afip-spinner" style="display:none;">⏳ Consultando…</span>
+      </button>
+    </div>
+    <div id="msg-afip" style="display:none; border-radius:6px; padding:8px 12px;
+         font-size:0.85rem; margin-bottom:12px;"></div>
+
+    <div style="border-top:1px solid #E5E7EB; padding-top:14px; margin-bottom:12px;">
+      <span style="font-size:0.78rem; font-weight:700; color:#6c757d;
+                   text-transform:uppercase; letter-spacing:.04em;">Datos fiscales (AFIP)</span>
+    </div>
+
+    <label for="razon_social">Razón Social</label>
+    <input type="text" id="razon_social" name="razon_social" placeholder="Ej: Empresa SRL">
+
+    <label for="condicion_iva">Condición IVA</label>
+    <select id="condicion_iva" name="condicion_iva"
+      style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
+      <option value="">— Seleccionar —</option>
+      <option value="responsable_inscripto">Responsable Inscripto</option>
+      <option value="monotributista">Monotributista</option>
+      <option value="exento">Exento</option>
+      <option value="consumidor_final">Consumidor Final</option>
+    </select>
+
+    <label for="domicilio_fiscal">Domicilio Fiscal</label>
+    <input type="text" id="domicilio_fiscal" name="domicilio_fiscal"
+      placeholder="Ej: Av. Corrientes 1234">
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+      <div>
+        <label for="localidad" style="margin-bottom:4px; display:block;">Localidad</label>
+        <input type="text" id="localidad" name="localidad"
+          placeholder="Ej: Buenos Aires" style="margin-bottom:0;">
+      </div>
+      <div>
+        <label for="provincia" style="margin-bottom:4px; display:block;">Provincia</label>
+        <input type="text" id="provincia" name="provincia"
+          placeholder="Ej: CABA" style="margin-bottom:0;">
+      </div>
+    </div>
+
+    <label for="codigo_postal">Código Postal</label>
+    <input type="text" id="codigo_postal" name="codigo_postal" placeholder="Ej: 1043">
+
+    <label for="actividad_principal">Actividad Principal</label>
+    <input type="text" id="actividad_principal" name="actividad_principal"
+      placeholder="Ej: Comercio al por mayor">
+
+    <label for="estado_afip">Estado AFIP</label>
+    <input type="text" id="estado_afip" name="estado_afip" placeholder="Ej: Activo">
+
+  </div><!-- /sec-mayorista -->
 
   <button type="submit">✅ Guardar Cliente</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var BG_AFIP = '#F0FDF4';
+  var AFIP_IDS = ['razon_social', 'condicion_iva', 'domicilio_fiscal',
+                  'localidad', 'provincia', 'codigo_postal',
+                  'actividad_principal', 'estado_afip'];
+
+  // ── Mostrar/ocultar y habilitar/deshabilitar secciones ──────────────
+  var tipoSel = document.getElementById('tipo');
+  var secMin  = document.getElementById('sec-minorista');
+  var secMay  = document.getElementById('sec-mayorista');
+
+  function toggleSecciones() {
+    var esMay = tipoSel.value === '1';
+    secMin.style.display = esMay ? 'none'  : 'block';
+    secMay.style.display = esMay ? 'block' : 'none';
+    secMin.querySelectorAll('input,select').forEach(function (el) {
+      el.disabled = esMay;
+    });
+    secMay.querySelectorAll('input,select').forEach(function (el) {
+      el.disabled = !esMay;
+    });
+  }
+  tipoSel.addEventListener('change', toggleSecciones);
+  toggleSecciones();
+
+  // ── Formateo CUIT: XX-XXXXXXXX-X ──────────────────────────────────
+  var cuitEl  = document.getElementById('cuit');
+  var btnAfip = document.getElementById('btn-afip');
+
+  function soloDigitos(s) { return s.replace(/\D/g, ''); }
+  function formatCuit(d) {
+    if (d.length <= 2)  return d;
+    if (d.length <= 10) return d.slice(0, 2) + '-' + d.slice(2);
+    return d.slice(0, 2) + '-' + d.slice(2, 10) + '-' + d.slice(10, 11);
+  }
+
+  cuitEl.addEventListener('input', function () {
+    var d = soloDigitos(this.value).slice(0, 11);
+    this.value = formatCuit(d);
+    btnAfip.disabled = (d.length < 11);
+  });
+
+  // ── Autocompletado AFIP ──────────────────────────────────────────────
+  var msgEl     = document.getElementById('msg-afip');
+  var labelEl   = document.getElementById('afip-label');
+  var spinnerEl = document.getElementById('afip-spinner');
+
+  // Marcar campo como venido de AFIP (fondo verde suave)
+  function markAfip(id, val) {
+    var el = document.getElementById(id);
+    if (!el || !val) return;
+    if (el.tagName === 'SELECT') {
+      for (var i = 0; i < el.options.length; i++) {
+        if (el.options[i].value === val) { el.value = val; break; }
+      }
+    } else {
+      el.value = val;
+    }
+    el.style.background = BG_AFIP;
+    el.dataset.fromAfip = '1';
+  }
+
+  // Al editar un campo AFIP, volver el fondo a blanco
+  AFIP_IDS.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var evt = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evt, function () {
+      if (this.dataset.fromAfip === '1') {
+        this.style.background = '';
+        this.dataset.fromAfip = '0';
+      }
+    });
+  });
+
+  function showMsg(txt, isError) {
+    msgEl.textContent    = txt;
+    msgEl.style.display  = 'block';
+    msgEl.style.background = isError ? '#FEF2F2' : '#F0FDF4';
+    msgEl.style.color      = isError ? '#DC2626' : '#15803D';
+    msgEl.style.border     = '1px solid ' + (isError ? '#FCA5A5' : '#86EFAC');
+  }
+
+  function setLoading(on) {
+    labelEl.style.display   = on ? 'none'   : 'inline';
+    spinnerEl.style.display = on ? 'inline' : 'none';
+    btnAfip.disabled = on;
+  }
+
+  function consultarAfip() {
+    var d = soloDigitos(cuitEl.value);
+    if (d.length !== 11) return;
+    setLoading(true);
+    msgEl.style.display = 'none';
+
+    fetch('/clientes/consultar-cuit?cuit=' + d, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      setLoading(false);
+      btnAfip.disabled = false;
+      if (data.ok) {
+        markAfip('razon_social',        data.razon_social  || '');
+        markAfip('condicion_iva',       data.condicion_iva || '');
+        markAfip('domicilio_fiscal',    data.domicilio     || '');
+        markAfip('localidad',           data.localidad     || '');
+        markAfip('provincia',           data.provincia     || '');
+        markAfip('codigo_postal',       data.codigo_postal || '');
+        markAfip('actividad_principal', data.actividad     || '');
+        markAfip('estado_afip',         data.estado        || '');
+        showMsg('✅ Datos obtenidos de AFIP. Podés editarlos antes de guardar.', false);
+      } else {
+        showMsg('⚠️ CUIT no encontrado en AFIP. Completá los datos manualmente.', true);
+      }
+    })
+    .catch(function () {
+      setLoading(false);
+      btnAfip.disabled = false;
+      showMsg('⚠️ No se pudo conectar con AFIP. Completá los datos manualmente.', true);
+    });
+  }
+
+  btnAfip.addEventListener('click', consultarAfip);
+
+  // También consulta automáticamente al salir del campo CUIT con 11 dígitos
+  cuitEl.addEventListener('blur', function () {
+    if (soloDigitos(this.value).length === 11) consultarAfip();
+  });
+})();
+</script>
 {% endblock %}

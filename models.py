@@ -98,11 +98,17 @@ def init_db():
             c.execute(f"ALTER TABLE ventas ADD COLUMN {col} {defn}")
     columnas_clientes = [r[1] for r in c.execute("PRAGMA table_info(clientes)").fetchall()]
     for col, definition in [
-        ("dni",           "TEXT"),
-        ("email",         "TEXT"),
-        ("tipo",          "INTEGER DEFAULT 0"),
-        ("razon_social",  "TEXT"),
-        ("condicion_iva", "TEXT NOT NULL DEFAULT 'consumidor_final'"),
+        ("dni",                  "TEXT"),
+        ("email",                "TEXT"),
+        ("tipo",                 "INTEGER DEFAULT 0"),
+        ("razon_social",         "TEXT"),
+        ("condicion_iva",        "TEXT NOT NULL DEFAULT 'consumidor_final'"),
+        ("domicilio_fiscal",     "TEXT"),
+        ("localidad",            "TEXT"),
+        ("provincia",            "TEXT"),
+        ("codigo_postal",        "TEXT"),
+        ("actividad_principal",  "TEXT"),
+        ("estado_afip",          "TEXT"),
     ]:
         if col not in columnas_clientes:
             c.execute(f"ALTER TABLE clientes ADD COLUMN {col} {definition}")
@@ -447,16 +453,26 @@ def get_clientes(page=1, per_page=20):
     conn.close()
     return clientes, total
 
-def add_cliente(nombre, cuit=None, telefono=None, dni=None, email=None, tipo=0):
+def add_cliente(nombre, cuit=None, telefono=None, dni=None, email=None, tipo=0,
+                razon_social=None, condicion_iva=None, domicilio_fiscal=None,
+                localidad=None, provincia=None, codigo_postal=None,
+                actividad_principal=None, estado_afip=None):
     conn = get_conn()
     if cuit:
         existente = conn.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,)).fetchone()
         if existente:
             conn.close()
             return False, "CUIT ya registrado"
+    condicion_iva = condicion_iva or 'consumidor_final'
     conn.execute(
-        "INSERT INTO clientes (nombre, cuit, telefono, dni, email, tipo) VALUES (?, ?, ?, ?, ?, ?)",
-        (nombre, cuit, telefono, dni, email, tipo)
+        "INSERT INTO clientes"
+        " (nombre, cuit, telefono, dni, email, tipo,"
+        "  razon_social, condicion_iva, domicilio_fiscal,"
+        "  localidad, provincia, codigo_postal, actividad_principal, estado_afip)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (nombre, cuit, telefono, dni, email, tipo,
+         razon_social, condicion_iva, domicilio_fiscal,
+         localidad, provincia, codigo_postal, actividad_principal, estado_afip)
     )
     conn.commit()
     conn.close()

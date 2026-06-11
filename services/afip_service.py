@@ -468,3 +468,121 @@ def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
 
     logger.info("PDF factura guardado en %s", abs_path)
     return rel_path
+
+
+# ── Padrón A13 ────────────────────────────────────────────────────────────────
+
+def consultar_cuit_padron(cuit_consultar):
+    """
+    Consulta el Padrón A13 de AFIP para el CUIT dado.
+    Devuelve dict: razon_social, condicion_iva, domicilio, localidad,
+                   provincia, codigo_postal, actividad, estado.
+    Lanza RuntimeError si el CUIT no existe o si falla la conexión.
+    """
+    from zeep import Client, Settings
+    from config.afip import WS_PADRON_A13_WSDL
+
+    cfg = _cfg()
+    token, sign = _obtener_ticket('ws_sr_padron_a13')
+    cuit_limpio = str(cuit_consultar).replace('-', '').replace(' ', '').strip()
+
+    client = Client(
+        wsdl=WS_PADRON_A13_WSDL[cfg['modo']],
+        settings=Settings(strict=False, xml_huge_tree=True),
+    )
+
+    try:
+        resp = client.service.getPersona(
+            token=token,
+            sign=sign,
+            cuitRepresentada=int(cfg['cuit']),
+            idPersona=int(cuit_limpio),
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error consultando padrón AFIP: {e}")
+
+    if resp is None:
+        raise RuntimeError("CUIT no encontrado en el padrón AFIP")
+
+    def _attr(obj, *attrs):
+        for a in attrs:
+            if obj is None:
+                return None
+            try:
+                obj = getattr(obj, a, None)
+            except Exception:
+                return None
+        return obj
+
+    def _s(val):
+        return str(val).strip().title() if val else ''
+
+    persona = _attr(resp, 'persona') or resp
+    datos_g = _attr(persona, 'datosGenerales') or persona
+
+    razon_social = _s(_attr(datos_g, 'razonSocial')) or _s(_attr(datos_g, 'nombre'))
+
+    estado_raw = str(_attr(datos_g, 'estado') or '').strip().lower()
+    estado = {'activo': 'Activo', 'inactivo': 'Inactivo'}.get(estado_raw, _s(_attr(datos_g, 'estado')) or 'Activo')
+
+    dom = _attr(datos_g, 'domicilioFiscal') or _attr(datos_g, 'domicilio')
+    direccion  = _s(_attr(dom, 'direccion'))
+    localidad  = _s(_attr(dom, 'localidad'))
+    provincia  = _s(_attr(dom, 'descripcionProvincia'))
+    cod_postal = str(_attr(dom, 'codPostal') or '').strip()
+
+    actividad = ''
+    acts_wrap = _attr(datos_g, 'actividades')
+    if acts_wrap is not None:
+        acts = getattr(acts_wrap, 'actividad', acts_wrap) if hasattr(acts_wrap, 'actividad') else [acts_wrap]
+        if not isinstance(acts, list):
+            acts = [acts]
+        for act in acts:
+            if act is None:
+                continue
+            orden = getattr(act, 'orden', None) or getattr(act, 'actividadPrimaria', None)
+            if orden in (1, '1', True):
+                actividad = _s(_attr(act, 'descripcionActividad'))
+                break
+        if not actividad and acts:
+            actividad = _s(_attr(acts[0], 'descripcionActividad'))
+
+    _COND_MAP = {
+        'responsable inscripto': 'responsable_inscripto',
+        'responsable_inscripto': 'responsable_inscripto',
+        'monotributista':        'monotributista',
+        'monotributo':           'monotributista',
+        'exento':                'exento',
+        'consumidor final':      'consumidor_final',
+        'no categorizado':       'consumidor_final',
+        'no responsable':        'exento',
+    }
+
+    condicion_iva = 'consumidor_final'
+    datos_rg = _attr(persona, 'datosRegimenGeneral')
+    datos_mt = _attr(persona, 'datosMonotributo')
+
+    if datos_rg is not None:
+        condicion_iva = 'responsable_inscripto'
+        imps_wrap = _attr(datos_rg, 'impuesto')
+        if imps_wrap is not None:
+            imps = imps_wrap if isinstance(imps_wrap, list) else [imps_wrap]
+            for imp in imps:
+                if _attr(imp, 'idImpuesto') == 30:
+                    cat = str(_attr(imp, 'descripcionCategoria') or _attr(imp, 'categoria') or '').lower().strip()
+                    condicion_iva = _COND_MAP.get(cat, 'responsable_inscripto')
+                    break
+    elif datos_mt is not None:
+        condicion_iva = 'monotributista'
+
+    logger.info("Padrón A13 consultado para CUIT %s: %s", cuit_limpio, razon_social)
+    return {
+        'razon_social':  razon_social,
+        'condicion_iva': condicion_iva,
+        'domicilio':     direccion,
+        'localidad':     localidad,
+        'provincia':     provincia,
+        'codigo_postal': cod_postal,
+        'actividad':     actividad,
+        'estado':        estado,
+    }

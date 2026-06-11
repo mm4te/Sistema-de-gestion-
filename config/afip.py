@@ -28,3 +28,8 @@ CBTE_TIPO_FACTURA_B = 6
 # IVA alícuota id=5 → 21%
 IVA_ALICUOTA_21 = 5
 IVA_PCT_21 = 0.21
+
+WS_PADRON_A13_WSDL = {
+    'homologacion': 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL',
+    'produccion':   'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL',
+}
