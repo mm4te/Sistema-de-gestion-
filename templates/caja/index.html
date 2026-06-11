@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+{% block title %}Caja{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:20px;">
+  <h1><i class="bi bi-cash-stack"></i> Caja</h1>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    {% if tiene_permiso('caja', 'crear') %}
+    <button type="button" id="btn-mov-manual"
+      style="background:var(--primary);color:white;padding:9px 18px;border-radius:7px;border:none;
+             font-weight:600;font-size:.9em;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+      <i class="bi bi-plus-circle"></i> Movimiento manual
+    </button>
+    {% endif %}
+    <a href="{{ url_for('caja.export_excel', tipo=tipo, origen=origen, metodo_pago=metodo_pago, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+       style="background:#16A34A;color:white;padding:9px 18px;border-radius:7px;text-decoration:none;
+              font-weight:600;font-size:.9em;display:inline-flex;align-items:center;gap:6px;">
+      <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+    </a>
+  </div>
+</div>
+
+<!-- ── Saldo cards ─────────────────────────────────────────────────── -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px;">
+
+  <div class="card" style="text-align:center; padding:18px 12px;">
+    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray);margin-bottom:6px;">Saldo Total</div>
+    <div style="font-size:1.7rem;font-weight:700;color:{{ '#16A34A' if saldos.total >= 0 else '#DC2626' }};">
+      ${{ saldos.total|pesos }}
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center; padding:18px 12px;">
+    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray);margin-bottom:6px;">
+      <i class="bi bi-cash-coin" style="color:#22C55E;"></i> Efectivo
+    </div>
+    <div style="font-size:1.4rem;font-weight:700;color:{{ '#16A34A' if saldos.efectivo >= 0 else '#DC2626' }};">
+      ${{ saldos.efectivo|pesos }}
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center; padding:18px 12px;">
+    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray);margin-bottom:6px;">
+      <i class="bi bi-bank" style="color:#3B82F6;"></i> Transferencia
+    </div>
+    <div style="font-size:1.4rem;font-weight:700;color:{{ '#16A34A' if saldos.transferencia >= 0 else '#DC2626' }};">
+      ${{ saldos.transferencia|pesos }}
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center; padding:18px 12px;">
+    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray);margin-bottom:6px;">
+      <i class="bi bi-credit-card" style="color:#8B5CF6;"></i> Tarjeta
+    </div>
+    <div style="font-size:1.4rem;font-weight:700;color:{{ '#16A34A' if saldos.tarjeta >= 0 else '#DC2626' }};">
+      ${{ saldos.tarjeta|pesos }}
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center; padding:18px 12px;">
+    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray);margin-bottom:6px;">
+      <i class="bi bi-three-dots" style="color:#9CA3AF;"></i> Otro
+    </div>
+    <div style="font-size:1.4rem;font-weight:700;color:{{ '#16A34A' if saldos.otro >= 0 else '#DC2626' }};">
+      ${{ saldos.otro|pesos }}
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Filtros ─────────────────────────────────────────────────────── -->
+<form method="get" style="background:#f8f9fa; padding:16px; border-radius:10px; margin-bottom:20px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label style="display:block;font-weight:600;font-size:.82em;margin-bottom:4px;">Tipo</label>
+      <select name="tipo" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; min-width:120px;">
+        <option value="">Todos</option>
+        {% for t in tipos %}
+        <option value="{{ t }}" {% if tipo == t %}selected{% endif %}>{{ t.capitalize() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-weight:600;font-size:.82em;margin-bottom:4px;">Origen</label>
+      <select name="origen" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; min-width:130px;">
+        <option value="">Todos</option>
+        {% for o in origenes %}
+        <option value="{{ o }}" {% if origen == o %}selected{% endif %}>{{ o.capitalize() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-weight:600;font-size:.82em;margin-bottom:4px;">Método</label>
+      <select name="metodo_pago" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; min-width:130px;">
+        <option value="">Todos</option>
+        {% for m in metodos %}
+        <option value="{{ m }}" {% if metodo_pago == m %}selected{% endif %}>{{ m.capitalize() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-weight:600;font-size:.82em;margin-bottom:4px;">Desde</label>
+      <input type="date" name="fecha_desde" value="{{ fecha_desde }}"
+             style="padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+    </div>
+    <div>
+      <label style="display:block;font-weight:600;font-size:.82em;margin-bottom:4px;">Hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ fecha_hasta }}"
+             style="padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+    </div>
+    <button type="submit" style="padding:8px 18px; border-radius:6px; background:var(--primary);
+            color:white; border:none; font-weight:600; cursor:pointer; align-self:flex-end;">
+      Filtrar
+    </button>
+    {% if tipo or origen or metodo_pago or fecha_desde or fecha_hasta %}
+    <a href="{{ url_for('caja.index') }}" style="align-self:flex-end; padding:8px 14px;
+       border-radius:6px; border:1px solid var(--border); color:var(--gray); text-decoration:none; font-size:.9em;">
+      ✕ Limpiar
+    </a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- ── Tabla de movimientos ────────────────────────────────────────── -->
+{% if movimientos %}
+<p style="color:var(--gray); font-size:.9em; margin-bottom:8px;">{{ total }} movimiento{{ 's' if total != 1 else '' }}</p>
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Origen</th>
+        <th>Descripción</th>
+        <th>Método</th>
+        <th style="text-align:right;">Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      {% set es_ingreso = (m['tipo'] == 'ingreso') %}
+      <tr>
+        <td data-label="Fecha" style="white-space:nowrap; color:var(--gray); font-size:.9em;">
+          {{ m['fecha'][:16] }}
+        </td>
+        <td data-label="Tipo">
+          {% if es_ingreso %}
+          <span style="background:#DCFCE7;color:#16A34A;padding:2px 10px;border-radius:20px;font-size:.8rem;font-weight:600;">
+            ↑ Ingreso
+          </span>
+          {% else %}
+          <span style="background:#FEE2E2;color:#DC2626;padding:2px 10px;border-radius:20px;font-size:.8rem;font-weight:600;">
+            ↓ Egreso
+          </span>
+          {% endif %}
+        </td>
+        <td data-label="Origen">
+          {% if m['origen'] == 'venta' %}
+          <span style="background:#DBEAFE;color:#1D4ED8;padding:2px 9px;border-radius:20px;font-size:.8rem;font-weight:600;">Venta</span>
+          {% elif m['origen'] == 'cancelacion' %}
+          <span style="background:#FEE2E2;color:#DC2626;padding:2px 9px;border-radius:20px;font-size:.8rem;font-weight:600;">Cancelación</span>
+          {% elif m['origen'] == 'gasto' %}
+          <span style="background:#FEF3C7;color:#D97706;padding:2px 9px;border-radius:20px;font-size:.8rem;font-weight:600;">Gasto</span>
+          {% else %}
+          <span style="background:#F3F4F6;color:#6B7280;padding:2px 9px;border-radius:20px;font-size:.8rem;font-weight:600;">Manual</span>
+          {% endif %}
+        </td>
+        <td data-label="Descripción">
+          {{ m['descripcion'] }}
+          {% if m['referencia_id'] %}
+          <span style="color:var(--gray); font-size:.85em;">#{{ m['referencia_id'] }}</span>
+          {% endif %}
+        </td>
+        <td data-label="Método" style="text-transform:capitalize;">
+          {{ m['metodo_pago'] or '—' }}
+        </td>
+        <td data-label="Monto" style="text-align:right; font-weight:700; white-space:nowrap;
+            color:{{ '#16A34A' if es_ingreso else '#DC2626' }};">
+          {{ '+' if es_ingreso else '-' }}${{ m['monto']|pesos }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Paginación -->
+{% if total_pages > 1 %}
+<div style="display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
+  {% if page > 1 %}
+  <a href="{{ url_for('caja.index', page=page-1, tipo=tipo, origen=origen, metodo_pago=metodo_pago, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+     class="pagination-link">« Anterior</a>
+  {% endif %}
+  {% for p in range(1, total_pages+1) %}
+  {% if p == page %}
+  <span style="background:var(--primary);color:white;padding:6px 12px;border-radius:6px;font-weight:bold;">{{ p }}</span>
+  {% else %}
+  <a href="{{ url_for('caja.index', page=p, tipo=tipo, origen=origen, metodo_pago=metodo_pago, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+     class="pagination-link">{{ p }}</a>
+  {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="{{ url_for('caja.index', page=page+1, tipo=tipo, origen=origen, metodo_pago=metodo_pago, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+     class="pagination-link">Siguiente »</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:48px 20px; color:var(--gray);">
+  <i class="bi bi-inbox" style="font-size:2.5rem; display:block; margin-bottom:12px; opacity:.4;"></i>
+  No hay movimientos para los filtros seleccionados.
+</div>
+{% endif %}
+
+<!-- ── Modal: movimiento manual ────────────────────────────────────── -->
+{% if tiene_permiso('caja', 'crear') %}
+<div id="modal-movimiento" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
+     z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:28px 32px; max-width:460px; width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 20px;">
+      <i class="bi bi-plus-circle" style="color:var(--primary);"></i> Movimiento manual
+    </h3>
+    <form method="post" action="{{ url_for('caja.nuevo_movimiento') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="display:grid; gap:14px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:4px;">Tipo *</label>
+            <select name="tipo" required
+              style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;">
+              <option value="ingreso">↑ Ingreso</option>
+              <option value="egreso">↓ Egreso</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:4px;">Método *</label>
+            <select name="metodo_pago" required
+              style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;">
+              {% for m in metodos %}
+              <option value="{{ m }}">{{ m.capitalize() }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:4px;">Descripción *</label>
+          <input type="text" name="descripcion" required maxlength="200"
+            placeholder="Ej: Retiro de efectivo, Depósito bancario..."
+            style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font-size:.95rem;">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:4px;">Monto *</label>
+            <input type="number" name="monto" min="0.01" step="0.01" required
+              placeholder="0.00"
+              style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;">
+          </div>
+          <div>
+            <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:4px;">Fecha</label>
+            <input type="date" name="fecha" value="{{ hoy }}"
+              style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:22px; justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('modal-movimiento').style.display='none'"
+          style="padding:9px 20px;border-radius:7px;border:1px solid var(--border);
+                 background:white;color:#374151;cursor:pointer;font-weight:500;">
+          Cancelar
+        </button>
+        <button type="submit"
+          style="padding:9px 22px;border-radius:7px;border:none;
+                 background:var(--primary);color:white;cursor:pointer;font-weight:600;">
+          <i class="bi bi-check2-circle"></i> Registrar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if tiene_permiso('caja', 'crear') %}
+<script>
+  const btnMov = document.getElementById('btn-mov-manual');
+  const modal  = document.getElementById('modal-movimiento');
+  if (btnMov) {
+    btnMov.addEventListener('click', () => { modal.style.display = 'flex'; });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+  }
+</script>
+{% endif %}
+{% endblock %}

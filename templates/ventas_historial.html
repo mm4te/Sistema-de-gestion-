@@ -4,15 +4,43 @@
 {% block content %}
 <h1>📈 Historial de Ventas ({{ total }})</h1>
 
+<!-- Filtro por origen -->
+<div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;">
+  <a href="{{ url_for('ventas_historial.ventas_historial') }}"
+     style="padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em;
+            background: {{ '#4361ee' if origen == '' else '#e9ecef' }};
+            color: {{ 'white' if origen == '' else '#333' }};">
+    Todas
+  </a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', origen='tiendanube') }}"
+     style="padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em;
+            background: {{ '#4361ee' if origen == 'tiendanube' else '#e9ecef' }};
+            color: {{ 'white' if origen == 'tiendanube' else '#333' }};">
+    🛒 Tienda Nube
+  </a>
+  <span title="Próximamente"
+        style="padding: 6px 12px; border-radius: 6px; font-size: 0.9em;
+               background: #e9ecef; color: #adb5bd; cursor: not-allowed; user-select: none;">
+    Mercado Libre
+  </span>
+  <a href="{{ url_for('ventas_historial.ventas_historial', origen='negocio') }}"
+     style="padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em;
+            background: {{ '#4361ee' if origen == 'negocio' else '#e9ecef' }};
+            color: {{ 'white' if origen == 'negocio' else '#333' }};">
+    🏪 Negocio
+  </a>
+</div>
+
 <!-- Búsqueda por ID -->
 <form method="get" style="margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap;">
+  <input type="hidden" name="origen" value="{{ origen }}">
   <div>
     <label for="id">🔍 Buscar por ID de venta:</label>
     <input type="number" id="id" name="id" value="{{ search_id }}" placeholder="Ej: 123" style="width: 150px;">
   </div>
   <button type="submit" style="align-self: end;">Buscar</button>
   {% if search_id %}
-  <a href="{{ url_for('ventas_historial.ventas_historial') }}"
+  <a href="{{ url_for('ventas_historial.ventas_historial', origen=origen) }}"
     style="align-self: end; margin-left: 10px; color: #e63946;">Ver todas</a>
   {% endif %}
 </form>
@@ -26,20 +54,36 @@
         <th>Fecha</th>
         <th>Cliente</th>
         <th>Total</th>
+        <th>Estado</th>
         <th>Acciones</th>
       </tr>
     </thead>
     <tbody>
       {% for v in ventas %}
-      <tr>
+      {% set cancelada = (v['estado'] == 'cancelada') %}
+      <tr style="{{ 'opacity: 0.55; background: #fafafa;' if cancelada else '' }}">
         <td data-label="ID">
           {% if v['metodo_pago'] == 'Tienda Nube' %}🛒 {{ v['order_id'] }}{% else %}{{ v['id'] }}{% endif %}
         </td>
         <td data-label="Fecha">{{ v['fecha'] }}</td>
         <td data-label="Cliente">{{ v['nombre'] }}</td>
         <td data-label="Total">$ {{ v['total']|pesos }}</td>
-        <td data-label="Acciones">
-          <a href="/venta/{{ v['id'] }}" style="color: #4361ee;">🔍 Ver detalle</a>
+        <td data-label="Estado">
+          {% if cancelada %}
+          <span style="background:#FEE2E2;color:#DC2626;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;">Cancelada</span>
+          {% else %}
+          <span style="background:#DCFCE7;color:#16A34A;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;">Activa</span>
+          {% endif %}
+        </td>
+        <td data-label="Acciones" style="white-space: nowrap;">
+          <a href="/venta/{{ v['id'] }}" style="color: #4361ee; margin-right: 8px;">🔍 Ver</a>
+          {% if not cancelada and tiene_permiso('ventas', 'cancelar') %}
+          <button type="button"
+            onclick="abrirModalCancelar({{ v['id'] }}, '{{ v['nombre']|replace("'", "\\'") }}', '{{ v['total']|pesos }}')"
+            style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:0.9em;padding:0;">
+            🚫 Cancelar
+          </button>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -51,21 +95,72 @@
 {% if not search_id and total_pages > 1 %}
 <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
   {% if page > 1 %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1) }}" class="pagination-link">« Anterior</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1, origen=origen) }}" class="pagination-link">« Anterior</a>
   {% endif %}
   {% for p in range(1, total_pages+1) %}
   {% if p == page %}
   <span style="background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
   {% else %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=p) }}" class="pagination-link">{{ p }}</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=p, origen=origen) }}" class="pagination-link">{{ p }}</a>
   {% endif %}
   {% endfor %}
   {% if page < total_pages %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1) }}" class="pagination-link">Siguiente »</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1, origen=origen) }}" class="pagination-link">Siguiente »</a>
   {% endif %}
 </div>
 {% endif %}
 {% else %}
 <p>No se encontraron ventas.</p>
 {% endif %}
+
+<!-- Modal de cancelación -->
+<div id="modal-cancelar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
+     z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:28px 32px; max-width:440px; width:90%;
+              box-shadow: 0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 6px; color:#DC2626;">🚫 Cancelar venta</h3>
+    <p id="modal-resumen" style="color:#6B7280; margin-bottom:20px; font-size:0.95rem;"></p>
+    <form id="form-cancelar" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="motivo-cancelar" style="font-weight:600; font-size:0.9rem;">
+        Motivo de cancelación <span style="color:#9CA3AF;">(opcional)</span>
+      </label>
+      <textarea id="motivo-cancelar" name="motivo" rows="3"
+        placeholder="Ej: error en los datos, pedido duplicado..."
+        style="width:100%; margin-top:6px; padding:10px; border:1px solid #E5E7EB;
+               border-radius:8px; font-size:0.95rem; resize:vertical;"></textarea>
+      <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+        <button type="button" onclick="cerrarModal()"
+          style="padding:9px 20px; border-radius:7px; border:1px solid #E5E7EB;
+                 background:white; color:#374151; cursor:pointer; font-weight:500;">
+          Volver
+        </button>
+        <button type="submit"
+          style="padding:9px 20px; border-radius:7px; border:none;
+                 background:#DC2626; color:white; cursor:pointer; font-weight:600;">
+          Confirmar cancelación
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function abrirModalCancelar(id, cliente, total) {
+    document.getElementById('modal-resumen').textContent =
+      'Venta #' + id + ' — ' + cliente + ' — $' + total;
+    document.getElementById('form-cancelar').action = '/venta/' + id + '/cancelar';
+    document.getElementById('motivo-cancelar').value = '';
+    const modal = document.getElementById('modal-cancelar');
+    modal.style.display = 'flex';
+  }
+  function cerrarModal() {
+    document.getElementById('modal-cancelar').style.display = 'none';
+  }
+  document.getElementById('modal-cancelar').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModal();
+  });
+</script>
 {% endblock %}

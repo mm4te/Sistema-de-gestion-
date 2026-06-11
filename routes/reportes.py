@@ -23,6 +23,7 @@ def reporte_excel():
         JOIN clientes c ON v.cliente_id = c.id
         JOIN productos p ON dv.producto_id = p.id
         WHERE strftime('%Y-%m', v.fecha) = ?
+          AND (v.estado IS NULL OR v.estado != 'cancelada')
         ORDER BY v.fecha
     """, conn, params=(mes_actual,))
     conn.close()

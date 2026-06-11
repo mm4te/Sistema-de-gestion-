@@ -19,6 +19,7 @@ from routes.remitos import remitos_bp
 from routes.usuarios import usuarios_bp
 from routes.gastos import gastos_bp
 from routes.resumen import resumen_bp
+from routes.caja import caja_bp
 
 load_dotenv()
 
@@ -91,6 +92,7 @@ def create_app():
     app.register_blueprint(usuarios_bp)
     app.register_blueprint(gastos_bp)
     app.register_blueprint(resumen_bp)
+    app.register_blueprint(caja_bp)
 
     csrf.exempt(wbhook_tn)
 

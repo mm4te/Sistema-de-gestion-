@@ -76,6 +76,14 @@ def init_db():
     if "order_id" not in columnas_ventas:
         c.execute("ALTER TABLE ventas ADD COLUMN order_id TEXT")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_order_id ON ventas(order_id)")
+    if "estado" not in columnas_ventas:
+        c.execute("ALTER TABLE ventas ADD COLUMN estado TEXT NOT NULL DEFAULT 'activa'")
+    if "motivo_cancelacion" not in columnas_ventas:
+        c.execute("ALTER TABLE ventas ADD COLUMN motivo_cancelacion TEXT")
+    if "monto_recibido" not in columnas_ventas:
+        c.execute("ALTER TABLE ventas ADD COLUMN monto_recibido REAL")
+    if "vuelto" not in columnas_ventas:
+        c.execute("ALTER TABLE ventas ADD COLUMN vuelto REAL")
     columnas_clientes = [r[1] for r in c.execute("PRAGMA table_info(clientes)").fetchall()]
     for col, definition in [
         ("dni",   "TEXT"),
@@ -124,6 +132,10 @@ def init_db():
         FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id)
     )''')
 
+    columnas_presupuestos = [r[1] for r in c.execute("PRAGMA table_info(presupuestos)").fetchall()]
+    if 'venta_id' not in columnas_presupuestos:
+        c.execute("ALTER TABLE presupuestos ADD COLUMN venta_id INTEGER REFERENCES ventas(id)")
+
     # ── Remitos ──────────────────────────────────────────────────────────────
     c.execute('''CREATE TABLE IF NOT EXISTS remitos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,6 +168,22 @@ def init_db():
         FOREIGN KEY (remito_id) REFERENCES remitos(id),
         FOREIGN KEY (producto_id) REFERENCES productos(id)
     )''')
+
+    # ── Caja ─────────────────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS movimientos_caja (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo          TEXT NOT NULL,
+        origen        TEXT NOT NULL,
+        referencia_id INTEGER,
+        descripcion   TEXT NOT NULL,
+        monto         REAL NOT NULL,
+        metodo_pago   TEXT,
+        fecha         TEXT NOT NULL,
+        creado_por    INTEGER REFERENCES usuarios(id)
+    )''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_caja_fecha  ON movimientos_caja(fecha)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_caja_tipo   ON movimientos_caja(tipo)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_caja_origen ON movimientos_caja(origen)")
 
     # ── Gastos ───────────────────────────────────────────────────────────────
     c.execute('''CREATE TABLE IF NOT EXISTS categorias_gasto (
@@ -251,7 +279,7 @@ def init_db():
         # Admin (2) — todo excepto que no puede eliminar usuarios
         (2,'inventario','ver'),   (2,'inventario','crear'), (2,'inventario','editar'),
         (2,'inventario','eliminar'), (2,'inventario','importar'),
-        (2,'ventas','ver'),       (2,'ventas','crear'),
+        (2,'ventas','ver'),       (2,'ventas','crear'),     (2,'ventas','cancelar'),
         (2,'clientes','ver'),     (2,'clientes','crear'),   (2,'clientes','editar'), (2,'clientes','eliminar'),
         (2,'presupuestos','ver'), (2,'presupuestos','crear'),(2,'presupuestos','editar'),
         (2,'presupuestos','eliminar'), (2,'presupuestos','cambiar_estado'),
@@ -262,10 +290,11 @@ def init_db():
         (2,'usuarios','ver'),     (2,'usuarios','crear'),   (2,'usuarios','editar'),
         (2,'audit_log','ver'),
         (2,'gastos','ver'),       (2,'gastos','crear'),     (2,'gastos','editar'), (2,'gastos','eliminar'),
+        (2,'caja','ver'),         (2,'caja','crear'),
         (2,'resumen','ver'),
         # Supervisor (3)
         (3,'inventario','ver'),
-        (3,'ventas','ver'),       (3,'ventas','crear'),
+        (3,'ventas','ver'),       (3,'ventas','crear'),     (3,'ventas','cancelar'),
         (3,'clientes','ver'),     (3,'clientes','crear'),   (3,'clientes','editar'),
         (3,'presupuestos','ver'), (3,'presupuestos','crear'),(3,'presupuestos','editar'),
         (3,'presupuestos','cambiar_estado'),
@@ -273,6 +302,7 @@ def init_db():
         (3,'remitos','cambiar_estado'),
         (3,'reportes','ver'),
         (3,'gastos','ver'),
+        (3,'caja','ver'),         (3,'caja','crear'),
         (3,'resumen','ver'),
         # Vendedor (4)
         (4,'inventario','ver'),
@@ -427,7 +457,8 @@ def get_cliente_by_id(cliente_id):
 
 # === Ventas ===
 
-def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
+def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None,
+                    monto_recibido=None, vuelto=None, creado_por=None):
     conn = get_conn()
     try:
         # Verificar stock
@@ -443,8 +474,9 @@ def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
         total_venta = sum(item['precio'] * item['cantidad'] for item in carrito)
 
         conn.execute(
-            "INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas) VALUES (?, ?, ?, ?, ?)",
-            (fecha, cliente_id, total_venta, metodo_pago, cuotas)
+            "INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas, monto_recibido, vuelto)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (fecha, cliente_id, total_venta, metodo_pago, cuotas, monto_recibido, vuelto)
         )
         venta_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -458,6 +490,14 @@ def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None):
                 "UPDATE productos SET stock = stock - ? WHERE id = ?",
                 (item['cantidad'], item['id'])
             )
+
+        # Registrar ingreso en caja (misma transacción)
+        from services.caja_service import registrar_movimiento_en_conn
+        registrar_movimiento_en_conn(
+            conn, 'ingreso', 'venta', venta_id,
+            f"Venta #{venta_id}",
+            total_venta, metodo_pago, creado_por, fecha
+        )
 
         conn.commit()
 
@@ -533,16 +573,20 @@ def get_dashboard_data():
     total_clientes  = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
     hoy = datetime.now().strftime('%Y-%m-%d')
     ventas_hoy = conn.execute(
-        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE fecha LIKE ?", (hoy + '%',)
+        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas"
+        " WHERE fecha LIKE ? AND (estado IS NULL OR estado != 'cancelada')", (hoy + '%',)
     ).fetchone()
     mes_actual = datetime.now().strftime('%Y-%m')
     ventas_mes = conn.execute(
-        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas WHERE strftime('%Y-%m', fecha) = ?", (mes_actual,)
+        "SELECT COUNT(*), COALESCE(SUM(total), 0) FROM ventas"
+        " WHERE strftime('%Y-%m', fecha) = ? AND (estado IS NULL OR estado != 'cancelada')",
+        (mes_actual,)
     ).fetchone()
     ultimas_ventas = conn.execute("""
         SELECT v.id, v.fecha, c.nombre, v.total
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
+        WHERE v.estado IS NULL OR v.estado != 'cancelada'
         ORDER BY v.fecha DESC LIMIT 5
     """).fetchall()
     conn.close()

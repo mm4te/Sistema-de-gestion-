@@ -36,7 +36,7 @@ def get_resumen_mes(year, month):
 
     ing = conn.execute("""
         SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS cantidad
-        FROM ventas WHERE fecha BETWEEN ? AND ?
+        FROM ventas WHERE fecha BETWEEN ? AND ? AND (estado IS NULL OR estado != 'cancelada')
     """, (fecha_desde, fecha_hasta)).fetchone()
 
     gas = conn.execute("""
@@ -60,6 +60,7 @@ def get_resumen_mes(year, month):
         FROM ventas v
         JOIN clientes c ON v.cliente_id = c.id
         WHERE v.fecha BETWEEN ? AND ?
+          AND (v.estado IS NULL OR v.estado != 'cancelada')
         ORDER BY v.total DESC
         LIMIT 15
     """, (fecha_desde, fecha_hasta)).fetchall()
@@ -118,6 +119,7 @@ def get_evolucion_12meses(year, month):
     ventas_rows = conn.execute("""
         SELECT strftime('%Y-%m', fecha) AS mes, COALESCE(SUM(total), 0) AS total
         FROM ventas WHERE fecha BETWEEN ? AND ?
+          AND (estado IS NULL OR estado != 'cancelada')
         GROUP BY mes
     """, (fecha_desde_t, fecha_hasta_t)).fetchall()
 

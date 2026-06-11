@@ -1,5 +1,5 @@
 # routes/ventas.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
 from models import get_producto_by_id, registrar_venta, get_conn
 from routes import login_required
 
@@ -171,7 +171,7 @@ def seleccionar_pago():
         if metodo not in ['efectivo', 'transferencia', 'tarjeta']:
             flash("❌ Método de pago inválido", "error")
             return redirect(request.url)
-        if metodo == 'tarjeta' and cuotas not in [2, 3, 6]:
+        if metodo == 'tarjeta' and cuotas not in [1, 2, 3, 6]:
             flash("❌ Cuotas inválidas", "error")
             return redirect(request.url)
         session['metodo_pago'] = metodo
@@ -194,12 +194,15 @@ def confirmar_venta():
     if metodo_pago not in ['efectivo', 'transferencia', 'tarjeta']:
         flash("❌ Método de pago inválido", "error")
         return redirect(url_for('ventas.ventas'))
-    if metodo_pago == 'tarjeta' and cuotas not in [2, 3, 6]:
+    if metodo_pago == 'tarjeta' and cuotas not in [1, 2, 3, 6]:
         flash("❌ Cuotas inválidas", "error")
         return redirect(url_for('ventas.seleccionar_pago'))
     if metodo_pago != 'tarjeta':
         cuotas = None
-    success, result = registrar_venta(cliente_id, carrito, metodo_pago, cuotas)
+    monto_recibido = request.form.get('monto_recibido', type=float)
+    vuelto         = request.form.get('vuelto', type=float)
+    success, result = registrar_venta(cliente_id, carrito, metodo_pago, cuotas,
+                                      monto_recibido, vuelto, creado_por=g.user_id)
     if success:
         session.pop('carrito', None)
         session.pop('cliente_id_seleccionado', None)

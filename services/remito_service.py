@@ -494,8 +494,8 @@ def generar_pdf(remito_id):
         firma.setStyle(TableStyle([('TOPPADDING', (0,0), (-1,-1), 20)]))
         story += [firma, Spacer(1, 1.5*cm)]
         lineas = Table([[
-            HRFlowable(width="9cm", thickness=1, color=colors.black),
-            HRFlowable(width="6cm", thickness=1, color=colors.black),
+            HRFlowable(width=9*cm, thickness=1, color=colors.black),
+            HRFlowable(width=6*cm, thickness=1, color=colors.black),
         ]], colWidths=[10*cm, 7*cm])
         story.append(lineas)
 

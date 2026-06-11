@@ -269,7 +269,8 @@ def eliminar_presupuesto(presupuesto_id):
 
 # ── Convertir a venta ────────────────────────────────────────────────────────
 
-def convertir_a_venta(presupuesto_id, metodo_pago, cuotas=None):
+def convertir_a_venta(presupuesto_id, metodo_pago, cuotas=None,
+                      monto_recibido=None, vuelto=None, creado_por=None):
     conn = get_conn()
     p = conn.execute(
         "SELECT * FROM presupuestos WHERE id = ?", (presupuesto_id,)
@@ -277,6 +278,12 @@ def convertir_a_venta(presupuesto_id, metodo_pago, cuotas=None):
     if not p:
         conn.close()
         return False, "Presupuesto no encontrado"
+
+    # Guard: evitar conversiones duplicadas
+    if p['estado'] == 'convertido' or p['venta_id']:
+        conn.close()
+        return False, "Este presupuesto ya fue convertido a venta."
+
     if p['estado'] in ('rechazado', 'vencido'):
         conn.close()
         return False, f"No se puede convertir un presupuesto en estado '{p['estado']}'"
@@ -299,12 +306,35 @@ def convertir_a_venta(presupuesto_id, metodo_pago, cuotas=None):
     if not carrito:
         return False, "Ningún ítem tiene producto del inventario asociado"
 
-    success, result = registrar_venta(p['cliente_id'], carrito, metodo_pago, cuotas)
+    success, result = registrar_venta(p['cliente_id'], carrito, metodo_pago, cuotas,
+                                      monto_recibido, vuelto, creado_por)
     if not success:
         return False, result
 
     venta_id = result
-    cambiar_estado(presupuesto_id, 'aprobado', nota=f"Convertido a Venta #{venta_id}")
+
+    # Marcar presupuesto como convertido y guardar referencia a la venta
+    conn = get_conn()
+    try:
+        fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute(
+            "UPDATE presupuestos SET estado='convertido', venta_id=? WHERE id=?",
+            (venta_id, presupuesto_id)
+        )
+        conn.execute("""
+            INSERT INTO presupuesto_historial
+                (presupuesto_id, estado_anterior, estado_nuevo, fecha, usuario_id, nota)
+            VALUES (?, ?, 'convertido', ?, ?, ?)
+        """, (presupuesto_id, p['estado'], fecha, creado_por,
+              f"Convertido a Venta #{venta_id}"))
+        conn.commit()
+        logger.info("Presupuesto %s convertido a venta #%s", presupuesto_id, venta_id)
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Error marcando presupuesto %s como convertido", presupuesto_id)
+    finally:
+        conn.close()
+
     return True, venta_id
 
 

@@ -23,7 +23,15 @@
       🔄 Cambiar estado
     </button>
     {% endif %}
-    {% if p['estado'] in ('borrador','enviado','aprobado') %}
+    {% if p['estado'] == 'convertido' %}
+    <span class="badge badge-convertido" style="padding:8px 16px; font-size:.9rem;">
+      ✅ Convertido a Venta
+    </span>
+    <a href="{{ url_for('ventas_historial.detalle_venta', venta_id=p['venta_id']) }}"
+       style="background:#0c5460;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
+      🔗 Ver Venta #{{ p['venta_id'] }}
+    </a>
+    {% elif p['estado'] not in ('rechazado', 'vencido') %}
     <button onclick="document.getElementById('modal-venta').classList.add('active')"
             style="background:#2ecc71;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">
       💰 Convertir a Venta
@@ -162,41 +170,84 @@
 <!-- ── Modal: Convertir a venta ──────────────────────────────────────────── -->
 <div id="modal-venta" class="modal-overlay">
   <div class="modal-box">
-    <h3 style="margin-bottom:4px;">💰 Convertir a Venta</h3>
-    <p style="color:var(--gray); font-size:.9rem; margin-bottom:16px;">
+    <h3 style="margin-bottom:4px;">
+      <i class="bi bi-cash-stack" style="color:var(--primary);"></i> Convertir a Venta
+    </h3>
+    <p style="color:var(--gray); font-size:.9rem; margin-bottom:20px;">
       Total: <strong>$ {{ p['total'] | pesos }}</strong>
     </p>
+
     <form method="post" action="{{ url_for('presupuestos.convertir_venta', presupuesto_id=p['id']) }}"
           id="form-venta">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="monto_recibido" id="v-hidden-monto">
+      <input type="hidden" name="vuelto" id="v-hidden-vuelto">
 
-      <label>Método de pago</label>
-      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-        {% for m, label in [('efectivo','💵 Efectivo'),('transferencia','📲 Transferencia'),('tarjeta','💳 Tarjeta')] %}
-        <label style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer;">
-          <input type="radio" name="metodo_pago" value="{{ m }}" required
-                 {% if loop.first %}checked{% endif %}
-                 onchange="document.getElementById('cuotas-sec').style.display = this.value==='tarjeta'?'block':'none'">
-          {{ label }}
+      <!-- Cards de método de pago -->
+      <div class="pago-metodos">
+        <label class="pago-card" for="v-efectivo">
+          <input type="radio" id="v-efectivo" name="metodo_pago" value="efectivo" required>
+          <i class="bi bi-cash-coin" style="color: #22C55E;"></i>
+          <span>Efectivo</span>
         </label>
-        {% endfor %}
+        <label class="pago-card" for="v-transferencia">
+          <input type="radio" id="v-transferencia" name="metodo_pago" value="transferencia">
+          <i class="bi bi-bank" style="color: #3B82F6;"></i>
+          <span>Transferencia</span>
+        </label>
+        <label class="pago-card" for="v-tarjeta">
+          <input type="radio" id="v-tarjeta" name="metodo_pago" value="tarjeta">
+          <i class="bi bi-credit-card" style="color: #8B5CF6;"></i>
+          <span>Tarjeta</span>
+        </label>
       </div>
 
-      <div id="cuotas-sec" style="display:none; margin-bottom:16px;">
-        <label>Cuotas</label>
-        <div style="display:flex; gap:12px;">
-          {% for c in [2,3,6] %}
-          <label style="font-weight:normal; cursor:pointer;">
-            <input type="radio" name="cuotas" value="{{ c }}"> {{ c }} cuotas
+      <!-- Panel efectivo / vuelto -->
+      <div class="cuotas-panel" id="v-efectivo-panel" style="display: none; margin-top: 14px;">
+        <p class="cuotas-label">Dinero recibido</p>
+        <div style="position: relative; display: inline-block;">
+          <span style="position:absolute; left:12px; top:50%; transform:translateY(-85%);
+                       color:#6B7280; font-weight:600; pointer-events:none;">$</span>
+          <input type="number" id="v-monto-input" min="0" step="0.01"
+            placeholder="Ingresá el monto recibido"
+            style="padding:9px 12px 9px 26px; border:1.5px solid #E5E7EB; border-radius:8px;
+                   font-size:.95rem; width:100%; max-width:240px; outline:none;
+                   transition: border-color .15s; box-sizing:border-box;">
+        </div>
+        <div id="v-vuelto-display"
+             style="margin-top:8px; font-size:.95rem; font-weight:600; min-height:22px;"></div>
+      </div>
+
+      <!-- Panel cuotas -->
+      <div class="cuotas-panel" id="v-cuotas-panel" style="display: none; margin-top: 14px;">
+        <p class="cuotas-label">Seleccioná las cuotas</p>
+        <div class="cuotas-chips">
+          <label class="cuota-chip" for="vc1">
+            <input type="radio" id="vc1" name="cuotas" value="1">1 cuota
           </label>
-          {% endfor %}
+          <label class="cuota-chip" for="vc2">
+            <input type="radio" id="vc2" name="cuotas" value="2">2 cuotas
+          </label>
+          <label class="cuota-chip" for="vc3">
+            <input type="radio" id="vc3" name="cuotas" value="3">3 cuotas
+          </label>
+          <label class="cuota-chip" for="vc6">
+            <input type="radio" id="vc6" name="cuotas" value="6">6 cuotas
+          </label>
         </div>
       </div>
 
-      <div style="display:flex; gap:10px; margin-top:8px;">
-        <button type="submit">✅ Confirmar Venta</button>
-        <button type="button" onclick="document.getElementById('modal-venta').classList.remove('active')"
-                style="background:var(--gray);">Cancelar</button>
+      <!-- Acciones -->
+      <div style="display:flex; gap:10px; margin-top:22px; justify-content:flex-end;">
+        <button type="button"
+                onclick="document.getElementById('modal-venta').classList.remove('active'); resetModalVenta();"
+                style="padding:9px 20px; border-radius:7px; border:1px solid var(--border);
+                       background:white; color:#374151; cursor:pointer; font-weight:500;">
+          Cancelar
+        </button>
+        <button type="submit" id="v-btn-confirmar" class="btn-confirmar" disabled>
+          <i class="bi bi-check2-circle"></i> Confirmar Venta
+        </button>
       </div>
     </form>
   </div>
@@ -206,19 +257,141 @@
 {% block scripts %}
 <script>
 // Cerrar modales al hacer click fuera
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+  overlay.addEventListener('click', function(e) {
     if (e.target === overlay) overlay.classList.remove('active');
   });
 });
 
-// Validación cuotas en modal venta
-document.getElementById('form-venta').addEventListener('submit', e => {
-  const metodo = document.querySelector('input[name="metodo_pago"]:checked');
-  if (metodo && metodo.value === 'tarjeta') {
-    if (!document.querySelector('input[name="cuotas"]:checked')) {
-      e.preventDefault();
-      alert('Seleccioná una opción de cuotas.');
+// ── Modal: Convertir a Venta ─────────────────────────────────────────────
+var totalPresupuesto = {{ p['total'] | tojson }};
+
+var vMetodoInputs  = document.querySelectorAll('#form-venta input[name="metodo_pago"]');
+var vCuotaInputs   = document.querySelectorAll('#form-venta input[name="cuotas"]');
+var vEfectivoPanel = document.getElementById('v-efectivo-panel');
+var vCuotasPanel   = document.getElementById('v-cuotas-panel');
+var vMontoInput    = document.getElementById('v-monto-input');
+var vVueltoDisplay = document.getElementById('v-vuelto-display');
+var vHiddenMonto   = document.getElementById('v-hidden-monto');
+var vHiddenVuelto  = document.getElementById('v-hidden-vuelto');
+var vBtnConfirmar  = document.getElementById('v-btn-confirmar');
+
+function vUpdateBtn() {
+  var metodo = document.querySelector('#form-venta input[name="metodo_pago"]:checked');
+  if (!metodo) { vBtnConfirmar.disabled = true; return; }
+  if (metodo.value === 'tarjeta') {
+    vBtnConfirmar.disabled = !document.querySelector('#form-venta input[name="cuotas"]:checked');
+    return;
+  }
+  if (metodo.value === 'efectivo') {
+    var monto = parseFloat(vMontoInput.value);
+    vBtnConfirmar.disabled = isNaN(monto) || monto < totalPresupuesto;
+    return;
+  }
+  vBtnConfirmar.disabled = false;
+}
+
+function vUpdateVuelto() {
+  var monto = parseFloat(vMontoInput.value);
+  if (isNaN(monto) || vMontoInput.value === '') {
+    vVueltoDisplay.textContent = '';
+    vHiddenMonto.value = '';
+    vHiddenVuelto.value = '';
+    vUpdateBtn();
+    return;
+  }
+  var vuelto = monto - totalPresupuesto;
+  vHiddenMonto.value = monto.toFixed(2);
+  vHiddenVuelto.value = Math.max(0, vuelto).toFixed(2);
+  if (vuelto < 0) {
+    vVueltoDisplay.innerHTML = '<span style="color:#DC2626;">Monto insuficiente</span>';
+  } else {
+    vVueltoDisplay.innerHTML =
+      'Vuelto: <span style="color:#16A34A;">$' +
+      vuelto.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) +
+      '</span>';
+  }
+  vUpdateBtn();
+}
+
+function resetModalVenta() {
+  vMetodoInputs.forEach(function(i) {
+    i.checked = false;
+    i.closest('.pago-card').classList.remove('selected');
+  });
+  vCuotaInputs.forEach(function(i) {
+    i.checked = false;
+    i.closest('.cuota-chip').classList.remove('selected');
+  });
+  vEfectivoPanel.style.display = 'none';
+  vCuotasPanel.style.display = 'none';
+  vMontoInput.value = '';
+  vVueltoDisplay.textContent = '';
+  vHiddenMonto.value = '';
+  vHiddenVuelto.value = '';
+  vBtnConfirmar.disabled = true;
+}
+
+vMetodoInputs.forEach(function(input) {
+  input.addEventListener('change', function() {
+    vMetodoInputs.forEach(function(i) { i.closest('.pago-card').classList.remove('selected'); });
+    this.closest('.pago-card').classList.add('selected');
+    if (this.value === 'efectivo') {
+      vEfectivoPanel.style.display = 'block';
+      vCuotasPanel.style.display = 'none';
+      vCuotaInputs.forEach(function(c) {
+        c.checked = false;
+        c.closest('.cuota-chip').classList.remove('selected');
+      });
+      vMontoInput.value = '';
+      vVueltoDisplay.textContent = '';
+      vHiddenMonto.value = '';
+      vHiddenVuelto.value = '';
+    } else if (this.value === 'tarjeta') {
+      vCuotasPanel.style.display = 'block';
+      vEfectivoPanel.style.display = 'none';
+      vMontoInput.value = '';
+      vHiddenMonto.value = '';
+      vHiddenVuelto.value = '';
+    } else {
+      vEfectivoPanel.style.display = 'none';
+      vCuotasPanel.style.display = 'none';
+      vCuotaInputs.forEach(function(c) {
+        c.checked = false;
+        c.closest('.cuota-chip').classList.remove('selected');
+      });
+      vMontoInput.value = '';
+      vHiddenMonto.value = '';
+      vHiddenVuelto.value = '';
+    }
+    vUpdateBtn();
+  });
+});
+
+vCuotaInputs.forEach(function(input) {
+  input.addEventListener('change', function() {
+    document.querySelectorAll('#form-venta .cuota-chip').forEach(function(c) {
+      c.classList.remove('selected');
+    });
+    this.closest('.cuota-chip').classList.add('selected');
+    vUpdateBtn();
+  });
+});
+
+vMontoInput.addEventListener('input', vUpdateVuelto);
+vMontoInput.addEventListener('focus', function() { this.style.borderColor = 'var(--primary)'; });
+vMontoInput.addEventListener('blur',  function() { this.style.borderColor = '#E5E7EB'; });
+
+document.getElementById('form-venta').addEventListener('submit', function(e) {
+  var metodo = document.querySelector('#form-venta input[name="metodo_pago"]:checked');
+  if (!metodo) { e.preventDefault(); alert('❌ Seleccioná un método de pago.'); return; }
+  if (metodo.value === 'tarjeta' && !document.querySelector('#form-venta input[name="cuotas"]:checked')) {
+    e.preventDefault(); alert('❌ Seleccioná una opción de cuotas.'); return;
+  }
+  if (metodo.value === 'efectivo') {
+    var monto = parseFloat(vMontoInput.value);
+    if (isNaN(monto) || monto < totalPresupuesto) {
+      e.preventDefault(); alert('❌ El monto recibido es insuficiente.'); return;
     }
   }
 });

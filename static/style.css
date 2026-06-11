@@ -14,8 +14,9 @@
 .badge-enviado   { background: #cce5ff; color: #004085; }
 .badge-aprobado  { background: #d4edda; color: #155724; }
 .badge-rechazado { background: #f8d7da; color: #721c24; }
-.badge-vencido   { background: #fff3cd; color: #856404; }
-.badge-pendiente { background: #e2d9f3; color: #4a235a; }
+.badge-vencido     { background: #fff3cd; color: #856404; }
+.badge-convertido  { background: #d1ecf1; color: #0c5460; }
+.badge-pendiente   { background: #e2d9f3; color: #4a235a; }
 .badge-en_transito { background: #cce5ff; color: #004085; }
 .badge-entregado { background: #d4edda; color: #155724; }
 .badge-devuelto  { background: #f8d7da; color: #721c24; }
@@ -409,6 +410,139 @@ table th {
   border-collapse: collapse;
 }
 
+/* ── Seleccionar Pago ──────────────────────────────────────────────── */
+.pago-total-card {
+  display: inline-block;
+  text-align: center;
+  background: white;
+  border-radius: 12px;
+  padding: 18px 36px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  margin-bottom: 28px;
+}
+.pago-total-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--gray);
+  margin-bottom: 4px;
+}
+.pago-total-monto {
+  display: block;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--dark);
+  letter-spacing: -0.5px;
+}
+
+.pago-metodos {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pago-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 160px;
+  height: 120px;
+  background: white;
+  border: 2px solid #E5E7EB;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--dark);
+  user-select: none;
+}
+.pago-card input[type="radio"] { display: none; }
+.pago-card .bi { font-size: 1.8rem; }
+.pago-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px rgba(67,97,238,0.13);
+}
+.pago-card.selected {
+  border-color: var(--primary);
+  background: rgba(67,97,238,0.05);
+  box-shadow: 0 4px 14px rgba(67,97,238,0.13);
+}
+
+.cuotas-panel {
+  margin-top: 24px;
+  text-align: center;
+  animation: pagoFadeIn 0.18s ease;
+}
+@keyframes pagoFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cuotas-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--gray);
+  margin-bottom: 12px;
+}
+.cuotas-chips {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.cuota-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1.5px solid #E5E7EB;
+  background: #F9FAFB;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.cuota-chip input[type="radio"] { display: none; }
+.cuota-chip:hover { border-color: var(--primary); color: var(--primary); }
+.cuota-chip.selected { background: var(--primary); color: white; border-color: var(--primary); }
+
+.btn-confirmar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 44px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.btn-confirmar:not(:disabled) {
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(67,97,238,0.25);
+}
+.btn-confirmar:not(:disabled):hover {
+  background: #3451d1;
+  box-shadow: 0 5px 14px rgba(67,97,238,0.35);
+  transform: translateY(-1px);
+}
+.btn-confirmar:disabled {
+  background: #E9ECEF;
+  color: #ADB5BD;
+  cursor: not-allowed;
+}
+
 /* Responsive: móviles y tablets */
 @media (max-width: 768px) {
   .menu-toggle {
@@ -491,3 +625,24 @@ table th {
     word-wrap: break-word;
   }
 }
+
+@media (max-width: 480px) {
+  .pago-metodos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .pago-card { width: 100%; }
+}
+
+/* ── Pago cards inside modal (ancho limitado) ──────────────────────────── */
+.modal-box .pago-metodos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.modal-box .pago-card {
+  width: 100%;
+  height: 96px;
+  font-size: 0.85rem;
+}
+.modal-box .pago-card .bi { font-size: 1.5rem; }

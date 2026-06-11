@@ -43,7 +43,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="cliente">Cliente:</label>
       <select name="cliente_id" id="cliente" required onchange="this.form.submit()">
-        <option value="">-- Selecciona un cliente --</option>
+        <option value="">-- Seleccioná un cliente --</option>
         {% for id, nombre in clientes %}
         <option value="{{ id }}" {% if id==cliente_id_seleccionado %}selected{% endif %}>{{ nombre }}</option>
         {% endfor %}

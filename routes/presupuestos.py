@@ -2,7 +2,7 @@
 import json
 from datetime import date, timedelta
 
-from flask import (Blueprint, flash, redirect, render_template,
+from flask import (Blueprint, flash, g, redirect, render_template,
                    request, send_file, session, url_for)
 
 from models import get_conn
@@ -22,7 +22,7 @@ from services.presupuesto_service import (
 
 presupuestos_bp = Blueprint('presupuestos', __name__)
 
-ESTADOS = ['borrador', 'enviado', 'aprobado', 'rechazado', 'vencido']
+ESTADOS = ['borrador', 'enviado', 'aprobado', 'rechazado', 'vencido', 'convertido']
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -253,19 +253,22 @@ def pdf(presupuesto_id):
 @presupuestos_bp.route('/presupuestos/<int:presupuesto_id>/convertir_venta', methods=['POST'])
 @login_required
 def convertir_venta(presupuesto_id):
-    metodo_pago = request.form.get('metodo_pago')
-    cuotas      = request.form.get('cuotas', type=int)
+    metodo_pago    = request.form.get('metodo_pago')
+    cuotas         = request.form.get('cuotas', type=int)
+    monto_recibido = request.form.get('monto_recibido', type=float)
+    vuelto         = request.form.get('vuelto', type=float)
 
     if metodo_pago not in ('efectivo', 'transferencia', 'tarjeta'):
         flash("❌ Método de pago inválido", "error")
         return redirect(url_for('presupuestos.detalle', presupuesto_id=presupuesto_id))
-    if metodo_pago == 'tarjeta' and cuotas not in (2, 3, 6):
+    if metodo_pago == 'tarjeta' and cuotas not in (1, 2, 3, 6):
         flash("❌ Cuotas inválidas", "error")
         return redirect(url_for('presupuestos.detalle', presupuesto_id=presupuesto_id))
     if metodo_pago != 'tarjeta':
         cuotas = None
 
-    ok, result = convertir_a_venta(presupuesto_id, metodo_pago, cuotas)
+    ok, result = convertir_a_venta(presupuesto_id, metodo_pago, cuotas,
+                                   monto_recibido, vuelto, g.user_id)
     if ok:
         flash(f"✅ Venta #{result} creada exitosamente", "success")
         return redirect(url_for('ventas_historial.detalle_venta', venta_id=result))

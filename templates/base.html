@@ -45,6 +45,11 @@
         <i class="bi bi-wallet2"></i><span>Gastos</span>
       </a>
       {% endif %}
+      {% if tiene_permiso('caja', 'ver') %}
+      <a href="{{ url_for('caja.index') }}" {% if request.blueprint == 'caja' %}class="active"{% endif %}>
+        <i class="bi bi-cash-stack"></i><span>Caja</span>
+      </a>
+      {% endif %}
       {% if tiene_permiso('resumen', 'ver') %}
       <a href="{{ url_for('resumen.index') }}" {% if request.blueprint == 'resumen' %}class="active"{% endif %}>
         <i class="bi bi-bar-chart-line"></i><span>Resumen Mensual</span>

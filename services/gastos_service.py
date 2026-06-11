@@ -184,8 +184,16 @@ def crear_gasto(categoria_id, descripcion, monto, fecha, metodo_pago=None,
               archivo_nombre or None, archivo_ruta or None,
               observaciones.strip() if observaciones else None,
               usuario_id))
-        conn.commit()
         new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Registrar egreso en caja (misma transacción)
+        from services.caja_service import registrar_movimiento_en_conn
+        registrar_movimiento_en_conn(
+            conn, 'egreso', 'gasto', new_id,
+            f"Gasto: {descripcion.strip()}",
+            monto, metodo_pago, usuario_id, fecha
+        )
+        conn.commit()
         return True, new_id
     except Exception as e:
         conn.rollback()

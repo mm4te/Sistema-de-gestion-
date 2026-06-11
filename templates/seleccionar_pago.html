@@ -1,84 +1,205 @@
 {% extends 'base.html' %}
 {% block title %}Seleccionar Pago{% endblock %}
 
-{% block head %}
-<style>
-  .pago-option {
-    display: flex;
-    align-items: center;
-    margin: 15px 0;
-    padding: 15px;
-    border: 2px solid #dee2e6;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  .pago-option input { margin-right: 15px; transform: scale(1.3); }
-  .pago-option label { font-size: 1.1rem; font-weight: 500; }
-  .cuotas-container { margin-left: 40px; margin-top: 10px; display: none; }
-</style>
-{% endblock %}
-
 {% block content %}
 <a href="/ventas" class="back-link">← Volver a ventas</a>
 
-<h1 style="margin: 16px 0;">💳 Método de Pago</h1>
-<h2>Total a pagar: ${{ "%.2f"|format(total) }}</h2>
+<div style="max-width: 560px; margin: 28px auto; text-align: center;">
 
-<form id="pago-form" method="post" action="/confirmar_venta">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <div class="pago-option">
-    <input type="radio" id="efectivo" name="metodo_pago" value="efectivo" required>
-    <label for="efectivo">💵 Efectivo</label>
+  <!-- Total -->
+  <div class="pago-total-card">
+    <span class="pago-total-label">Total a pagar</span>
+    <span class="pago-total-monto">${{ "%.2f"|format(total) }}</span>
   </div>
 
-  <div class="pago-option">
-    <input type="radio" id="transferencia" name="metodo_pago" value="transferencia" required>
-    <label for="transferencia">📲 Transferencia</label>
-  </div>
+  <form id="pago-form" method="post" action="/confirmar_venta">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="monto_recibido" id="hidden-monto-recibido">
+    <input type="hidden" name="vuelto" id="hidden-vuelto">
 
-  <div class="pago-option">
-    <input type="radio" id="tarjeta" name="metodo_pago" value="tarjeta" required>
-    <label for="tarjeta">💳 Tarjeta de crédito</label>
-  </div>
+    <!-- Métodos de pago -->
+    <div class="pago-metodos">
+      <label class="pago-card" for="efectivo">
+        <input type="radio" id="efectivo" name="metodo_pago" value="efectivo" required>
+        <i class="bi bi-cash-coin" style="color: #22C55E;"></i>
+        <span>Efectivo</span>
+      </label>
 
-  <div class="cuotas-container" id="cuotas-section">
-    <h4>Cuotas:</h4>
-    <label><input type="radio" name="cuotas" value="2"> 2 cuotas</label><br>
-    <label><input type="radio" name="cuotas" value="3"> 3 cuotas</label><br>
-    <label><input type="radio" name="cuotas" value="6"> 6 cuotas</label>
-  </div>
+      <label class="pago-card" for="transferencia">
+        <input type="radio" id="transferencia" name="metodo_pago" value="transferencia">
+        <i class="bi bi-bank" style="color: #3B82F6;"></i>
+        <span>Transferencia</span>
+      </label>
 
-  <button type="submit" style="margin-top: 20px; background: #2ecc71; color: white; padding: 12px 30px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer;">✅ Confirmar Pago</button>
-</form>
+      <label class="pago-card" for="tarjeta">
+        <input type="radio" id="tarjeta" name="metodo_pago" value="tarjeta">
+        <i class="bi bi-credit-card" style="color: #8B5CF6;"></i>
+        <span>Tarjeta de crédito</span>
+      </label>
+    </div>
+
+    <!-- Panel de vuelto (solo efectivo) -->
+    <div class="cuotas-panel" id="efectivo-section" style="display: none;">
+      <p class="cuotas-label">Dinero recibido</p>
+      <div style="position: relative; display: inline-block;">
+        <span style="position:absolute; left:14px; top:50%; transform:translateY(-85%);
+                     color:#6B7280; font-weight:600; pointer-events:none;">$</span>
+        <input type="number" id="monto-recibido-input" min="0" step="0.01"
+          placeholder="Ingresá el monto recibido"
+          style="padding:10px 14px 10px 28px; border:1.5px solid #E5E7EB; border-radius:8px;
+                 font-size:1rem; width:260px; text-align:left; outline:none;
+                 transition: border-color 0.15s;">
+      </div>
+      <div id="vuelto-display" style="margin-top:10px; font-size:1rem; font-weight:600; min-height:24px;"></div>
+    </div>
+
+    <!-- Panel de cuotas (solo tarjeta) -->
+    <div class="cuotas-panel" id="cuotas-section" style="display: none;">
+      <p class="cuotas-label">Seleccioná las cuotas</p>
+      <div class="cuotas-chips">
+        <label class="cuota-chip" for="c1">
+          <input type="radio" id="c1" name="cuotas" value="1">1 cuota
+        </label>
+        <label class="cuota-chip" for="c2">
+          <input type="radio" id="c2" name="cuotas" value="2">2 cuotas
+        </label>
+        <label class="cuota-chip" for="c3">
+          <input type="radio" id="c3" name="cuotas" value="3">3 cuotas
+        </label>
+        <label class="cuota-chip" for="c6">
+          <input type="radio" id="c6" name="cuotas" value="6">6 cuotas
+        </label>
+      </div>
+    </div>
+
+    <!-- Confirmar -->
+    <div style="margin-top: 32px;">
+      <button type="submit" id="btn-confirmar" class="btn-confirmar" disabled>
+        <i class="bi bi-check2-circle"></i> Confirmar Pago
+      </button>
+    </div>
+  </form>
+
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const tarjetaRadio = document.getElementById('tarjeta');
-  const cuotasSection = document.getElementById('cuotas-section');
-  const pagoForm = document.getElementById('pago-form');
-  const cuotaInputs = document.querySelectorAll('input[name="cuotas"]');
+  var totalAPagar = {{ total | tojson }};
 
-  tarjetaRadio.addEventListener('change', function() {
-    cuotasSection.style.display = this.checked ? 'block' : 'none';
-    if (!this.checked) {
-      cuotaInputs.forEach(input => input.checked = false);
-    }
-  });
+  const pagoForm         = document.getElementById('pago-form');
+  const metodoInputs     = document.querySelectorAll('input[name="metodo_pago"]');
+  const cuotaInputs      = document.querySelectorAll('input[name="cuotas"]');
+  const cuotasSection    = document.getElementById('cuotas-section');
+  const efectivoSection  = document.getElementById('efectivo-section');
+  const montoInput       = document.getElementById('monto-recibido-input');
+  const vueltoDisplay    = document.getElementById('vuelto-display');
+  const hiddenMonto      = document.getElementById('hidden-monto-recibido');
+  const hiddenVuelto     = document.getElementById('hidden-vuelto');
+  const btnConfirmar     = document.getElementById('btn-confirmar');
 
-  pagoForm.addEventListener('submit', function(e) {
+  function updateBtn() {
     const metodo = document.querySelector('input[name="metodo_pago"]:checked');
-    if (!metodo) {
-      e.preventDefault();
-      alert('❌ Selecciona un método de pago.');
+    if (!metodo) { btnConfirmar.disabled = true; return; }
+
+    if (metodo.value === 'tarjeta') {
+      btnConfirmar.disabled = !document.querySelector('input[name="cuotas"]:checked');
       return;
     }
-    if (metodo.value === 'tarjeta') {
-      const cuotaSeleccionada = document.querySelector('input[name="cuotas"]:checked');
-      if (!cuotaSeleccionada) {
-        e.preventDefault();
-        alert('❌ Selecciona una opción de cuotas.');
-        return;
+    if (metodo.value === 'efectivo') {
+      const monto = parseFloat(montoInput.value);
+      btnConfirmar.disabled = isNaN(monto) || monto < totalAPagar;
+      return;
+    }
+    btnConfirmar.disabled = false;
+  }
+
+  function updateVuelto() {
+    const monto = parseFloat(montoInput.value);
+    if (isNaN(monto) || montoInput.value === '') {
+      vueltoDisplay.textContent = '';
+      hiddenMonto.value = '';
+      hiddenVuelto.value = '';
+      updateBtn();
+      return;
+    }
+    const vuelto = monto - totalAPagar;
+    hiddenMonto.value = monto.toFixed(2);
+    hiddenVuelto.value = Math.max(0, vuelto).toFixed(2);
+    if (vuelto < 0) {
+      vueltoDisplay.innerHTML = '<span style="color:#DC2626;">Monto insuficiente</span>';
+    } else {
+      vueltoDisplay.innerHTML =
+        'Vuelto: <span style="color:#16A34A;">$' +
+        vuelto.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) +
+        '</span>';
+    }
+    updateBtn();
+  }
+
+  montoInput.addEventListener('input', updateVuelto);
+  montoInput.addEventListener('focus', function() {
+    this.style.borderColor = 'var(--primary)';
+  });
+  montoInput.addEventListener('blur', function() {
+    this.style.borderColor = '#E5E7EB';
+  });
+
+  metodoInputs.forEach(input => {
+    input.addEventListener('change', function () {
+      document.querySelectorAll('.pago-card').forEach(c => c.classList.remove('selected'));
+      this.closest('.pago-card').classList.add('selected');
+
+      if (this.value === 'efectivo') {
+        efectivoSection.style.display = 'block';
+        cuotasSection.style.display = 'none';
+        cuotaInputs.forEach(c => {
+          c.checked = false;
+          c.closest('.cuota-chip').classList.remove('selected');
+        });
+        montoInput.value = '';
+        vueltoDisplay.textContent = '';
+        hiddenMonto.value = '';
+        hiddenVuelto.value = '';
+      } else if (this.value === 'tarjeta') {
+        cuotasSection.style.display = 'block';
+        efectivoSection.style.display = 'none';
+        montoInput.value = '';
+        hiddenMonto.value = '';
+        hiddenVuelto.value = '';
+      } else {
+        efectivoSection.style.display = 'none';
+        cuotasSection.style.display = 'none';
+        cuotaInputs.forEach(c => {
+          c.checked = false;
+          c.closest('.cuota-chip').classList.remove('selected');
+        });
+        montoInput.value = '';
+        hiddenMonto.value = '';
+        hiddenVuelto.value = '';
+      }
+      updateBtn();
+    });
+  });
+
+  cuotaInputs.forEach(input => {
+    input.addEventListener('change', function () {
+      document.querySelectorAll('.cuota-chip').forEach(c => c.classList.remove('selected'));
+      this.closest('.cuota-chip').classList.add('selected');
+      updateBtn();
+    });
+  });
+
+  pagoForm.addEventListener('submit', function (e) {
+    const metodo = document.querySelector('input[name="metodo_pago"]:checked');
+    if (!metodo) { e.preventDefault(); alert('❌ Selecciona un método de pago.'); return; }
+    if (metodo.value === 'tarjeta' && !document.querySelector('input[name="cuotas"]:checked')) {
+      e.preventDefault(); alert('❌ Selecciona una opción de cuotas.'); return;
+    }
+    if (metodo.value === 'efectivo') {
+      const monto = parseFloat(montoInput.value);
+      if (isNaN(monto) || monto < totalAPagar) {
+        e.preventDefault(); alert('❌ El monto recibido es insuficiente.'); return;
       }
     }
   });

@@ -156,6 +156,14 @@ def webhook_tiendanube():
                 (cantidad, sku)
             )
 
+        # Registrar ingreso en caja (misma transacción)
+        from services.caja_service import registrar_movimiento_en_conn
+        registrar_movimiento_en_conn(
+            conn, 'ingreso', 'venta', venta_id,
+            f"Venta Tienda Nube #{order_id}",
+            total, 'Tienda Nube'
+        )
+
         conn.commit()
         conn.close()
         logger.info("Orden %s procesada correctamente", order_id)
