@@ -217,7 +217,7 @@
         markAfip('estado_afip',         data.estado        || '');
         showMsg('✅ Datos obtenidos de AFIP. Podés editarlos antes de guardar.', false);
       } else {
-        showMsg('⚠️ CUIT no encontrado en AFIP. Completá los datos manualmente.', true);
+        showMsg('⚠️ ' + (data.error || 'Error al consultar AFIP') + '. Podés completar los datos manualmente.', true);
       }
     })
     .catch(function () {
