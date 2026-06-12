@@ -43,6 +43,13 @@
       <a href="/presupuestos" {% if request.blueprint == 'presupuestos' %}class="active"{% endif %}>
         <i class="bi bi-file-earmark-text"></i><span>Presupuestos</span>
       </a>
+      {% if tiene_permiso('importaciones', 'ver') %}
+      <div class="nav-section-label">Compras</div>
+      <a href="{{ url_for('importaciones.lista') }}" {% if request.blueprint == 'importaciones' %}class="active"{% endif %}>
+        <i class="bi bi-globe"></i><span>Importaciones</span>
+      </a>
+      {% endif %}
+
       {% if tiene_permiso('gastos', 'ver') %}
       <div class="nav-section-label">Administración</div>
       {% endif %}

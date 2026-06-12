@@ -1,0 +1,562 @@
+{% extends 'base.html' %}
+{% block title %}{{ imp.numero }}{% endblock %}
+
+{% set estado_labels = {
+  'pendiente_pago': 'Pendiente de pago',
+  'pagado': 'Pagado',
+  'en_transito': 'En tránsito',
+  'en_aduana': 'En aduana',
+  'recibido': 'Recibido',
+  'cerrado': 'Cerrado'
+} %}
+{% set estado_colors = {
+  'pendiente_pago': '#92400e',
+  'pagado': '#1e40af',
+  'en_transito': '#155e75',
+  'en_aduana': '#c2410c',
+  'recibido': '#6d28d9',
+  'cerrado': '#166534'
+} %}
+{% set estado_bgs = {
+  'pendiente_pago': '#fef3c7',
+  'pagado': '#dbeafe',
+  'en_transito': '#cffafe',
+  'en_aduana': '#ffedd5',
+  'recibido': '#ede9fe',
+  'cerrado': '#dcfce7'
+} %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+  <div style="display:flex; align-items:center; gap:12px;">
+    <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary" style="padding:6px 12px;">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+      <h2 style="margin:0;"><i class="bi bi-globe" style="color:var(--primary);"></i> {{ imp.numero }}</h2>
+      <span style="background:{{ estado_bgs[imp.estado] }}; color:{{ estado_colors[imp.estado] }};
+                   padding:3px 12px; border-radius:10px; font-size:.85em; font-weight:700;">
+        {{ estado_labels[imp.estado] }}
+      </span>
+    </div>
+  </div>
+  {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+  <a href="{{ url_for('importaciones.editar', imp_id=imp.id) }}" class="btn-secondary">
+    <i class="bi bi-pencil"></i> Editar
+  </a>
+  {% endif %}
+</div>
+
+<!-- Info general -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px; margin-bottom:24px;">
+  <div class="card" style="padding:14px 18px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">PROVEEDOR</p>
+    <p style="font-weight:700;">{{ imp.proveedor_nombre }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">FECHA PEDIDO</p>
+    <p style="font-weight:700;">{{ imp.fecha_pedido }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">MONEDA / TC</p>
+    <p style="font-weight:700;">{{ imp.moneda_origen }} → ARS × {{ "%.2f"|format(imp.tipo_cambio) }}</p>
+  </div>
+  {% if imp.fecha_pago %}
+  <div class="card" style="padding:14px 18px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">FECHA PAGO</p>
+    <p style="font-weight:700;">{{ imp.fecha_pago }}</p>
+  </div>
+  {% endif %}
+  {% if imp.fecha_llegada %}
+  <div class="card" style="padding:14px 18px;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">FECHA LLEGADA</p>
+    <p style="font-weight:700;">{{ imp.fecha_llegada }}</p>
+  </div>
+  {% endif %}
+  {% if imp.observaciones %}
+  <div class="card" style="padding:14px 18px; grid-column: 1 / -1;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">OBSERVACIONES</p>
+    <p>{{ imp.observaciones }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ PRODUCTOS DEL PEDIDO ══════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h3 style="margin:0;"><i class="bi bi-box-seam"></i> Productos del pedido</h3>
+    <span style="font-size:.85em; color:var(--gray);">{{ items|length }} ítem{% if items|length != 1 %}s{% endif %}</span>
+  </div>
+
+  {% if items %}
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Descripción</th>
+          <th style="text-align:right;">Cant.</th>
+          <th style="text-align:right;">P. Unit. FOB</th>
+          <th style="text-align:right;">Subtotal FOB</th>
+          <th style="text-align:right;">Subtotal ARS</th>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td data-label="Descripción">
+            {{ it.descripcion }}
+            {% if it.producto_id %}
+            <br><span style="font-size:.75em; color:var(--gray);">SKU: {{ it.sku or '—' }}</span>
+            {% else %}
+            <br><span style="font-size:.75em; color:#d97706; font-weight:600;">Producto nuevo (sin SKU)</span>
+            {% endif %}
+          </td>
+          <td data-label="Cant." style="text-align:right;">{{ "%.0f"|format(it.cantidad) if it.cantidad == it.cantidad|int else it.cantidad }}</td>
+          <td data-label="P.Unit.FOB" style="text-align:right; font-weight:600;">
+            {{ imp.moneda_origen }} {{ "%.2f"|format(it.precio_unitario_fob) }}
+          </td>
+          <td data-label="Subtotal FOB" style="text-align:right;">
+            {{ imp.moneda_origen }} {{ "%.2f"|format(it.cantidad * it.precio_unitario_fob) }}
+          </td>
+          <td data-label="Subtotal ARS" style="text-align:right; font-weight:700;">
+            ${{ (it.cantidad * it.precio_unitario_fob * imp.tipo_cambio) | pesos }}
+          </td>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+          <td style="text-align:center;">
+            <form method="post"
+                  action="{{ url_for('importaciones.eliminar_item_route', imp_id=imp.id, item_id=it.id) }}"
+                  onsubmit="return confirm('¿Eliminar este producto del pedido?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit"
+                      style="background:var(--danger);color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.8em;">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="background:#f8f9fa; font-weight:700;">
+          <td colspan="3" style="text-align:right; padding:8px 12px;">Total FOB:</td>
+          <td style="text-align:right; padding:8px 12px;">{{ imp.moneda_origen }} {{ "%.2f"|format(total_fob) }}</td>
+          <td style="text-align:right; padding:8px 12px;">${{ total_fob_ars | pesos }}</td>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}<td></td>{% endif %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p style="color:var(--gray); text-align:center; padding:20px 0;">Sin productos aún.</p>
+  {% endif %}
+
+  <!-- Formulario agregar producto -->
+  {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+  <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+    <h4 style="margin-bottom:12px; font-size:.95em; color:var(--gray);">+ Agregar producto</h4>
+    <form method="post" action="{{ url_for('importaciones.agregar_item_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <!-- Toggle tipo de item -->
+      <div style="display:flex; gap:20px; margin-bottom:14px;">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:.9em; font-weight:600;">
+          <input type="radio" name="tipo_item" value="existente" checked
+                 onchange="toggleTipoItem('existente')">
+          Producto existente en inventario
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:.9em; font-weight:600;">
+          <input type="radio" name="tipo_item" value="nuevo"
+                 onchange="toggleTipoItem('nuevo')">
+          Producto nuevo (sin SKU)
+        </label>
+      </div>
+
+      <div style="display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Producto</label>
+          <div id="div-existente">
+            <select name="producto_id" id="sel-producto"
+                    style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+              <option value="">Seleccionar...</option>
+              {% for p in productos %}
+              <option value="{{ p.id }}" data-desc="{{ p.descripcion }}">
+                {{ p.sku }} — {{ p.descripcion[:50] }}{% if p.descripcion|length > 50 %}...{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div id="div-nuevo" style="display:none;">
+            <input type="text" name="descripcion" id="inp-descripcion"
+                   placeholder="Descripción del producto nuevo"
+                   style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+          </div>
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Cantidad</label>
+          <input type="number" name="cantidad" step="1" min="1" required
+                 placeholder="0"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+            P. Unit. FOB ({{ imp.moneda_origen }})
+          </label>
+          <input type="number" name="precio_unitario_fob" step="0.01" min="0" required
+                 placeholder="0.00"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <button type="submit" class="btn-primary" style="padding:8px 16px; white-space:nowrap;">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ GASTOS ADICIONALES ════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h3 style="margin:0;"><i class="bi bi-receipt"></i> Gastos adicionales de importación</h3>
+    {% if total_gastos > 0 %}
+    <span style="font-weight:700; color:#dc2626;">${{ total_gastos | pesos }}</span>
+    {% endif %}
+  </div>
+
+  {% if gastos %}
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Descripción</th>
+          <th style="text-align:right;">Monto</th>
+          <th>Comp.</th>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gastos %}
+        <tr>
+          <td data-label="Tipo">
+            <span style="font-size:.8em; background:#e9ecef; padding:2px 8px; border-radius:10px;">
+              {% for val, lbl in tipos_gasto %}{% if val == g.tipo %}{{ lbl }}{% endif %}{% endfor %}
+            </span>
+          </td>
+          <td data-label="Descripción">{{ g.descripcion or '—' }}</td>
+          <td data-label="Monto" style="text-align:right; font-weight:700; color:#dc2626;">
+            ${{ g.monto | pesos }}
+          </td>
+          <td data-label="Comp." style="text-align:center;">
+            {% if g.comprobante_ruta %}
+            <a href="{{ url_for('importaciones.descargar_comprobante', gasto_id=g.id) }}"
+               title="{{ g.comprobante_nombre }}" style="font-size:1.2rem; text-decoration:none;">
+              <i class="bi bi-paperclip"></i>
+            </a>
+            {% endif %}
+          </td>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+          <td style="text-align:center;">
+            <form method="post"
+                  action="{{ url_for('importaciones.eliminar_gasto_route', imp_id=imp.id, gasto_id=g.id) }}"
+                  onsubmit="return confirm('¿Eliminar este gasto?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit"
+                      style="background:var(--danger);color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.8em;">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="color:var(--gray); text-align:center; padding:12px 0; font-size:.9em;">
+    Sin gastos adicionales aún. Se agregan a medida que llegan (flete, aduana, despachante, etc.)
+  </p>
+  {% endif %}
+
+  <!-- Formulario agregar gasto -->
+  {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+  <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+    <h4 style="margin-bottom:12px; font-size:.95em; color:var(--gray);">+ Agregar gasto</h4>
+    <form method="post" enctype="multipart/form-data"
+          action="{{ url_for('importaciones.agregar_gasto_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Tipo</label>
+          <select name="tipo" required
+                  style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+            {% for val, lbl in tipos_gasto %}
+            <option value="{{ val }}">{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Descripción</label>
+          <input type="text" name="descripcion" placeholder="Opcional"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Monto (ARS)</label>
+          <input type="number" name="monto" step="0.01" min="0.01" required placeholder="0.00"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Método pago</label>
+          <select name="metodo_pago"
+                  style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+            <option value="">No especificado</option>
+            {% for m in metodos_pago %}
+            <option value="{{ m }}">{{ m|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn-primary" style="padding:8px 16px; white-space:nowrap;">
+            <i class="bi bi-plus-lg"></i> Registrar
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+          Comprobante (pdf, jpg, png) — opcional
+        </label>
+        <input type="file" name="comprobante" accept=".pdf,.jpg,.jpeg,.png,.webp"
+               style="font-size:.85em;">
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ RESUMEN ═══════════════════════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:24px;">
+  <div class="card" style="padding:14px 18px; border-left:4px solid #3b82f6;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">TOTAL FOB ({{ imp.moneda_origen }})</p>
+    <p style="font-size:1.4rem; font-weight:700;">{{ "%.2f"|format(total_fob) }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px; border-left:4px solid #3b82f6;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">TOTAL FOB (ARS)</p>
+    <p style="font-size:1.4rem; font-weight:700;">${{ total_fob_ars | pesos }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px; border-left:4px solid #dc2626;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">GASTOS EXTRA</p>
+    <p style="font-size:1.4rem; font-weight:700; color:#dc2626;">${{ total_gastos | pesos }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px; border-left:4px solid #16a34a;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">TOTAL FINAL (ARS)</p>
+    <p style="font-size:1.4rem; font-weight:700; color:#16a34a;">${{ total_final | pesos }}</p>
+  </div>
+  <div class="card" style="padding:14px 18px; border-left:4px solid #8b5cf6;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">COSTO PROM./UNID.</p>
+    <p style="font-size:1.4rem; font-weight:700; color:#8b5cf6;">
+      {% if costo_prom > 0 %}${{ costo_prom | pesos }}{% else %}—{% endif %}
+    </p>
+    <p style="font-size:.75em; color:var(--gray);">{{ unidades | int }} unidades totales</p>
+  </div>
+</div>
+
+<!-- ══ DESGLOSE DE COSTOS ════════════════════════════════════════════════════ -->
+{% if costos_preview %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="margin-bottom:16px;">
+    <i class="bi bi-calculator"></i> Desglose de costos por producto
+    {% if imp.estado == 'cerrado' %}
+    <span style="font-size:.75em; background:#dcfce7; color:#166534; padding:2px 8px; border-radius:8px; font-weight:600; margin-left:8px;">Aplicado al inventario</span>
+    {% else %}
+    <span style="font-size:.75em; background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:8px; font-weight:600; margin-left:8px;">Vista previa</span>
+    {% endif %}
+  </h3>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th style="text-align:right;">Subtotal FOB (ARS)</th>
+          <th style="text-align:right;">Proporción</th>
+          <th style="text-align:right;">Gastos asig.</th>
+          <th style="text-align:right;">Costo total</th>
+          <th style="text-align:right; font-weight:700; color:var(--primary);">Costo unit. final</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in costos_preview %}
+        <tr>
+          <td data-label="Producto">
+            {{ c.descripcion }}
+            <br><span style="font-size:.75em; color:var(--gray);">{{ c.cantidad | int }} un. × {{ imp.moneda_origen }} {{ "%.2f"|format(c.precio_unitario_fob) }}</span>
+          </td>
+          <td data-label="FOB ARS" style="text-align:right;">${{ c.subtotal_fob_ars | pesos }}</td>
+          <td data-label="Proporción" style="text-align:right; color:var(--gray);">
+            {{ "%.1f"|format(c.proporcion * 100) }}%
+          </td>
+          <td data-label="Gastos" style="text-align:right; color:#dc2626;">
+            ${{ c.gastos_asignados | pesos }}
+          </td>
+          <td data-label="Total" style="text-align:right;">${{ c.costo_total | pesos }}</td>
+          <td data-label="Costo unit." style="text-align:right; font-weight:700; color:var(--primary); font-size:1.05em;">
+            ${{ c.costo_final_unitario | pesos }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══ ACCIONES ══════════════════════════════════════════════════════════════ -->
+{% if imp.estado != 'cerrado' %}
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; margin-bottom:24px;">
+
+  <!-- Registrar pago al proveedor -->
+  {% if imp.estado == 'pendiente_pago' and tiene_permiso('importaciones', 'editar') %}
+  <div class="card" style="border-left:4px solid #f59e0b;">
+    <h4 style="margin-bottom:12px; color:#92400e;"><i class="bi bi-cash-coin"></i> Registrar pago al proveedor</h4>
+    <p style="font-size:.85em; color:var(--gray); margin-bottom:12px;">
+      Confirma el pago al proveedor y registra el egreso en caja.
+    </p>
+    <form method="post" action="{{ url_for('importaciones.registrar_pago_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:10px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+          Tipo de cambio real ({{ imp.moneda_origen }} → ARS)
+        </label>
+        <input type="number" name="tipo_cambio" step="0.01" min="0.01" required
+               value="{{ imp.tipo_cambio }}"
+               style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Fecha de pago</label>
+        <input type="date" name="fecha_pago"
+               style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Método de pago</label>
+        <select name="metodo_pago"
+                style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+          {% for m in metodos_pago %}
+          <option value="{{ m }}">{{ m|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if items %}
+      <div style="background:#fef3c7; padding:10px; border-radius:6px; font-size:.85em; margin-bottom:12px; color:#92400e;">
+        <strong>Total a debitar de caja:</strong>
+        ${{ (total_fob * imp.tipo_cambio) | pesos }} (al tipo de cambio actual)
+      </div>
+      {% endif %}
+      <button type="submit" class="btn-primary"
+              {% if not items %}disabled title="Agregá productos antes de registrar el pago"{% endif %}
+              style="width:100%;"
+              {% if items %}onclick="return confirm('¿Confirmar pago al proveedor? Se registrará un egreso en caja.')"{% endif %}>
+        <i class="bi bi-check-circle"></i> Confirmar pago
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Cambiar estado -->
+  {% if tiene_permiso('importaciones', 'editar') %}
+  <div class="card" style="border-left:4px solid #6366f1;">
+    <h4 style="margin-bottom:12px;"><i class="bi bi-arrow-repeat"></i> Avanzar estado</h4>
+    <form method="post" action="{{ url_for('importaciones.cambiar_estado_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:10px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Nuevo estado</label>
+        <select name="nuevo_estado" id="sel-estado"
+                onchange="toggleFechaLlegada(this.value)"
+                style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+          {% for val, lbl in estados %}
+          {% if val != 'cerrado' and val != imp.estado %}
+          <option value="{{ val }}">{{ lbl }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div id="div-fecha-llegada" style="display:none; margin-bottom:10px;">
+        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Fecha de llegada</label>
+        <input type="date" name="fecha_llegada"
+               style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      </div>
+      <button type="submit" class="btn-secondary" style="width:100%;">
+        <i class="bi bi-check"></i> Aplicar cambio
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Cerrar importación -->
+  {% if items and tiene_permiso('importaciones', 'cerrar') %}
+  <div class="card" style="border-left:4px solid #16a34a;">
+    <h4 style="margin-bottom:12px; color:#166534;"><i class="bi bi-box-arrow-in-down"></i> Cerrar importación</h4>
+    <p style="font-size:.85em; color:var(--gray); margin-bottom:12px;">
+      Calcula el costo final de cada producto y lo aplica al inventario. Esta acción no es reversible.
+    </p>
+    {% if costos_preview %}
+    <ul style="font-size:.82em; color:var(--gray); margin-bottom:14px; padding-left:16px;">
+      {% for c in costos_preview %}
+      <li>
+        {{ c.descripcion[:40] }}{% if c.descripcion|length > 40 %}...{% endif %}
+        → <strong>${{ c.costo_final_unitario | pesos }}/un.</strong>
+        {% if not c.producto_id %}<span style="color:#d97706;"> (nuevo producto)</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="post" action="{{ url_for('importaciones.cerrar', imp_id=imp.id) }}"
+          onsubmit="return confirm('¿Cerrar la importación y aplicar costos al inventario? Esta acción no puede deshacerse.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-primary" style="width:100%; background:#16a34a; border-color:#16a34a;">
+        <i class="bi bi-check2-all"></i> Cerrar y aplicar costos
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleTipoItem(tipo) {
+  var divExistente = document.getElementById('div-existente');
+  var divNuevo     = document.getElementById('div-nuevo');
+  var selProducto  = document.getElementById('sel-producto');
+  var inpDesc      = document.getElementById('inp-descripcion');
+  if (tipo === 'existente') {
+    divExistente.style.display = '';
+    divNuevo.style.display = 'none';
+    if (inpDesc) inpDesc.value = '';
+  } else {
+    divExistente.style.display = 'none';
+    divNuevo.style.display = '';
+    if (selProducto) selProducto.value = '';
+  }
+}
+
+function toggleFechaLlegada(estado) {
+  var div = document.getElementById('div-fecha-llegada');
+  if (div) div.style.display = (estado === 'recibido') ? '' : 'none';
+}
+
+// Mostrar fecha llegada si el select ya tiene 'recibido' seleccionado
+(function() {
+  var sel = document.getElementById('sel-estado');
+  if (sel) toggleFechaLlegada(sel.value);
+})();
+</script>
+{% endblock %}

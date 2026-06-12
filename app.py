@@ -20,6 +20,7 @@ from routes.usuarios import usuarios_bp
 from routes.gastos import gastos_bp
 from routes.resumen import resumen_bp
 from routes.caja import caja_bp
+from routes.importaciones import importaciones_bp
 
 load_dotenv()
 
@@ -47,6 +48,10 @@ def create_app():
     upload_folder = os.path.join(BASE_DIR, 'uploads', 'gastos')
     os.makedirs(upload_folder, exist_ok=True)
     app.config['UPLOAD_FOLDER_GASTOS'] = upload_folder
+
+    upload_folder_imp = os.path.join(BASE_DIR, 'uploads', 'importaciones')
+    os.makedirs(upload_folder_imp, exist_ok=True)
+    app.config['UPLOAD_FOLDER_IMPORTACIONES'] = upload_folder_imp
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
 
     csrf.init_app(app)
@@ -93,6 +98,7 @@ def create_app():
     app.register_blueprint(gastos_bp)
     app.register_blueprint(resumen_bp)
     app.register_blueprint(caja_bp)
+    app.register_blueprint(importaciones_bp)
 
     csrf.exempt(wbhook_tn)
 

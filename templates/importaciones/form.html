@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+  <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary" style="padding:6px 12px;">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h2><i class="bi bi-globe" style="color:var(--primary);"></i> {{ titulo }}</h2>
+</div>
+
+<div class="card" style="max-width:640px;">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div style="margin-bottom:16px;">
+      <label style="display:block; font-weight:600; margin-bottom:6px;">
+        Proveedor <span style="color:var(--danger);">*</span>
+      </label>
+      <div style="display:flex; gap:8px;">
+        <select name="proveedor_id" required
+                style="flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:6px;">
+          <option value="">Seleccionar proveedor...</option>
+          {% for p in proveedores %}
+          <option value="{{ p.id }}"
+                  {% if imp and imp.proveedor_id == p.id %}selected{% endif %}>
+            {{ p.nombre }}{% if p.pais %} — {{ p.pais }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <a href="{{ url_for('importaciones.proveedores') }}" class="btn-secondary"
+           title="Administrar proveedores" style="padding:9px 12px; white-space:nowrap;">
+          <i class="bi bi-building"></i>
+        </a>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+      <div>
+        <label style="display:block; font-weight:600; margin-bottom:6px;">
+          Fecha del pedido <span style="color:var(--danger);">*</span>
+        </label>
+        <input type="date" name="fecha_pedido" required
+               value="{{ imp.fecha_pedido if imp else hoy }}"
+               style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="display:block; font-weight:600; margin-bottom:6px;">Moneda origen</label>
+        <select name="moneda_origen"
+                style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px;">
+          {% for m in monedas %}
+          <option value="{{ m }}" {% if imp and imp.moneda_origen == m %}selected{% elif not imp and m == 'USD' %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label style="display:block; font-weight:600; margin-bottom:6px;">
+        Tipo de cambio (1 {{ (imp.moneda_origen if imp else 'USD') }} = ? ARS)
+      </label>
+      <input type="number" name="tipo_cambio" step="0.01" min="0.01" required
+             value="{{ imp.tipo_cambio if imp else '' }}"
+             placeholder="Ej: 1150.00"
+             style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      <p style="font-size:.8em; color:var(--gray); margin-top:4px;">
+        Podés actualizar este valor al registrar el pago oficial.
+      </p>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="display:block; font-weight:600; margin-bottom:6px;">Observaciones</label>
+      <textarea name="observaciones" rows="3"
+                placeholder="Notas del pedido, condiciones, etc."
+                style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box; resize:vertical;">{{ imp.observaciones if imp and imp.observaciones else '' }}</textarea>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="btn-primary">
+        {% if imp %}<i class="bi bi-check-lg"></i> Guardar cambios
+        {% else %}<i class="bi bi-plus-lg"></i> Crear importación{% endif %}
+      </button>
+      <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -286,6 +286,60 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_categoria  ON gastos(categoria_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_gastos_recurrente ON gastos(es_recurrente)")
 
+    # ── Proveedores (del exterior) ────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS proveedores (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre   TEXT NOT NULL,
+        pais     TEXT,
+        contacto TEXT,
+        telefono TEXT,
+        email    TEXT,
+        notas    TEXT
+    )''')
+
+    # ── Importaciones (orden de compra al exterior) ───────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS importaciones (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        proveedor_id    INTEGER NOT NULL,
+        numero          TEXT UNIQUE NOT NULL,
+        fecha_pedido    TEXT NOT NULL,
+        fecha_pago      TEXT,
+        fecha_llegada   TEXT,
+        estado          TEXT NOT NULL DEFAULT 'pendiente_pago',
+        moneda_origen   TEXT NOT NULL DEFAULT 'USD',
+        tipo_cambio     REAL NOT NULL DEFAULT 1,
+        observaciones   TEXT,
+        FOREIGN KEY (proveedor_id) REFERENCES proveedores(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS importacion_items (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        importacion_id       INTEGER NOT NULL,
+        producto_id          INTEGER,
+        descripcion          TEXT NOT NULL,
+        cantidad             REAL NOT NULL DEFAULT 1,
+        precio_unitario_fob  REAL NOT NULL DEFAULT 0,
+        costo_final_unitario REAL,
+        FOREIGN KEY (importacion_id) REFERENCES importaciones(id),
+        FOREIGN KEY (producto_id)    REFERENCES productos(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS importacion_gastos (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        importacion_id     INTEGER NOT NULL,
+        tipo               TEXT NOT NULL,
+        descripcion        TEXT,
+        monto              REAL NOT NULL DEFAULT 0,
+        comprobante_nombre TEXT,
+        comprobante_ruta   TEXT,
+        FOREIGN KEY (importacion_id) REFERENCES importaciones(id)
+    )''')
+
+    c.execute("CREATE INDEX IF NOT EXISTS idx_importaciones_proveedor ON importaciones(proveedor_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_importaciones_estado    ON importaciones(estado)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_import_items_imp        ON importacion_items(importacion_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_import_gastos_imp       ON importacion_gastos(importacion_id)")
+
     # ── Migrar remitos: campos de retiro por terceros ────────────────────────
     columnas_remitos = [r[1] for r in c.execute("PRAGMA table_info(remitos)").fetchall()]
     for col, definition in [
@@ -358,6 +412,17 @@ def init_db():
         (5,'reportes','ver'),
     ]
     for row in _PERMISOS:
+        c.execute("INSERT OR IGNORE INTO rol_permisos (rol_id, modulo, accion) VALUES (?,?,?)", row)
+
+    _PERMISOS_IMP = [
+        (2,'importaciones','ver'), (2,'importaciones','crear'), (2,'importaciones','editar'),
+        (2,'importaciones','eliminar'), (2,'importaciones','cerrar'),
+        (3,'importaciones','ver'), (3,'importaciones','crear'), (3,'importaciones','editar'),
+        (3,'importaciones','cerrar'),
+        (4,'importaciones','ver'),
+        (5,'importaciones','ver'),
+    ]
+    for row in _PERMISOS_IMP:
         c.execute("INSERT OR IGNORE INTO rol_permisos (rol_id, modulo, accion) VALUES (?,?,?)", row)
 
     # Usuarios existentes sin rol → SuperAdmin

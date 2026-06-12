@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% block title %}Proveedores del exterior{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+  <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary" style="padding:6px 12px;">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h2><i class="bi bi-building" style="color:var(--primary);"></i> Proveedores del exterior</h2>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; flex-wrap:wrap;">
+
+  <!-- Lista de proveedores -->
+  <div>
+    {% if proveedores %}
+    {% for p in proveedores %}
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <strong>{{ p.nombre }}</strong>
+            {% if p.pais %}
+            <span style="font-size:.8em; background:#e9ecef; padding:2px 8px; border-radius:10px;">{{ p.pais }}</span>
+            {% endif %}
+          </div>
+          {% if p.contacto %}<p style="font-size:.85em; color:var(--gray); margin:2px 0;"><i class="bi bi-person"></i> {{ p.contacto }}</p>{% endif %}
+          {% if p.telefono %}<p style="font-size:.85em; color:var(--gray); margin:2px 0;"><i class="bi bi-telephone"></i> {{ p.telefono }}</p>{% endif %}
+          {% if p.email %}<p style="font-size:.85em; color:var(--gray); margin:2px 0;"><i class="bi bi-envelope"></i> {{ p.email }}</p>{% endif %}
+          {% if p.notas %}<p style="font-size:.82em; color:var(--gray); margin-top:6px; font-style:italic;">{{ p.notas }}</p>{% endif %}
+        </div>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          {% if tiene_permiso('importaciones', 'editar') %}
+          <button onclick="abrirEditar({{ p.id }}, '{{ p.nombre|replace("'", "\\'") }}', '{{ (p.pais or '')|replace("'", "\\'") }}', '{{ (p.contacto or '')|replace("'", "\\'") }}', '{{ (p.telefono or '')|replace("'", "\\'") }}', '{{ (p.email or '')|replace("'", "\\'") }}', '{{ (p.notas or '')|replace("'", "\\'") }}')"
+                  class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+            <i class="bi bi-pencil"></i>
+          </button>
+          {% endif %}
+          {% if tiene_permiso('importaciones', 'eliminar') %}
+          <form method="post"
+                action="{{ url_for('importaciones.eliminar_proveedor_route', prov_id=p.id) }}"
+                onsubmit="return confirm('¿Eliminar este proveedor?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:var(--danger);color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.8em;">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card" style="text-align:center; padding:40px; color:var(--gray);">
+      <i class="bi bi-building" style="font-size:2.5rem; opacity:.4;"></i>
+      <p style="margin-top:12px;">No hay proveedores registrados.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Formulario nuevo / editar -->
+  <div>
+    <div class="card" id="form-card">
+      <h3 style="margin-bottom:16px;" id="form-titulo">
+        <i class="bi bi-plus-circle"></i> Nuevo proveedor
+      </h3>
+      <form method="post" id="form-proveedor"
+            action="{{ url_for('importaciones.nuevo_proveedor') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-weight:600; margin-bottom:5px;">
+            Nombre <span style="color:var(--danger);">*</span>
+          </label>
+          <input type="text" name="nombre" id="inp-nombre" required
+                 placeholder="Ej: Alibaba Trading Co."
+                 style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:5px;">País</label>
+            <input type="text" name="pais" id="inp-pais" placeholder="China"
+                   style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:5px;">Contacto</label>
+            <input type="text" name="contacto" id="inp-contacto" placeholder="Nombre del contacto"
+                   style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:5px;">Teléfono / WhatsApp</label>
+            <input type="text" name="telefono" id="inp-telefono" placeholder="+86 ..."
+                   style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:5px;">Email</label>
+            <input type="email" name="email" id="inp-email" placeholder="proveedor@mail.com"
+                   style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-weight:600; margin-bottom:5px;">Notas</label>
+          <textarea name="notas" id="inp-notas" rows="3"
+                    placeholder="Condiciones, términos de pago, observaciones..."
+                    style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box; resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn-primary" id="btn-submit">
+            <i class="bi bi-plus-lg"></i> Crear proveedor
+          </button>
+          <button type="button" onclick="resetForm()" class="btn-secondary" id="btn-cancelar" style="display:none;">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var editUrl = "{{ url_for('importaciones.editar_proveedor', prov_id=0) }}".replace('/0/', '/');
+
+function abrirEditar(id, nombre, pais, contacto, telefono, email, notas) {
+  document.getElementById('inp-nombre').value   = nombre;
+  document.getElementById('inp-pais').value     = pais;
+  document.getElementById('inp-contacto').value = contacto;
+  document.getElementById('inp-telefono').value = telefono;
+  document.getElementById('inp-email').value    = email;
+  document.getElementById('inp-notas').value    = notas;
+
+  var form = document.getElementById('form-proveedor');
+  form.action = editUrl + id + '/editar';
+
+  document.getElementById('form-titulo').innerHTML =
+    '<i class="bi bi-pencil"></i> Editando proveedor';
+  document.getElementById('btn-submit').innerHTML =
+    '<i class="bi bi-check-lg"></i> Guardar cambios';
+  document.getElementById('btn-cancelar').style.display = '';
+
+  document.getElementById('form-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetForm() {
+  document.getElementById('form-proveedor').reset();
+  document.getElementById('form-proveedor').action =
+    "{{ url_for('importaciones.nuevo_proveedor') }}";
+  document.getElementById('form-titulo').innerHTML =
+    '<i class="bi bi-plus-circle"></i> Nuevo proveedor';
+  document.getElementById('btn-submit').innerHTML =
+    '<i class="bi bi-plus-lg"></i> Crear proveedor';
+  document.getElementById('btn-cancelar').style.display = 'none';
+}
+</script>
+{% endblock %}

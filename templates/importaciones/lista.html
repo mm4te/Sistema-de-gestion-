@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}Importaciones{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <h2><i class="bi bi-globe" style="color:var(--primary);"></i> Importaciones</h2>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    {% if tiene_permiso('importaciones', 'ver') %}
+    <a href="{{ url_for('importaciones.proveedores') }}" class="btn-secondary">
+      <i class="bi bi-building"></i> Proveedores
+    </a>
+    {% endif %}
+    {% if tiene_permiso('importaciones', 'crear') %}
+    <a href="{{ url_for('importaciones.nueva') }}" class="btn-primary">
+      <i class="bi bi-plus-lg"></i> Nueva Importación
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" style="background:#f8f9fa; padding:16px; border-radius:10px; margin-bottom:20px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label style="display:block; font-weight:600; font-size:.85em; margin-bottom:4px;">Estado</label>
+      <select name="estado" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-width:160px;">
+        <option value="">Todos</option>
+        {% for val, label in estados %}
+        <option value="{{ val }}" {% if estado_filtro == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block; font-weight:600; font-size:.85em; margin-bottom:4px;">Proveedor</label>
+      <select name="proveedor_id" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-width:160px;">
+        <option value="">Todos</option>
+        {% for p in proveedores %}
+        <option value="{{ p.id }}" {% if proveedor_id_filtro == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary" style="width:auto; padding:8px 20px;">Filtrar</button>
+    <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary" style="padding:8px 16px;">Limpiar</a>
+  </div>
+</form>
+
+<!-- Contador -->
+<div style="margin-bottom:16px; color:var(--gray); font-size:.9em;">
+  {{ total }} importación{% if total != 1 %}es{% endif %} encontrada{% if total != 1 %}s{% endif %}
+</div>
+
+{% if filas %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Proveedor</th>
+        <th>Fecha pedido</th>
+        <th>Estado</th>
+        <th style="text-align:right;">Total FOB</th>
+        <th style="text-align:right;">Gastos extra</th>
+        <th style="text-align:right;">Total ARS</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for imp in filas %}
+      {% set total_ars = imp.total_fob * imp.tipo_cambio + imp.total_gastos %}
+      <tr>
+        <td data-label="Número">
+          <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+             style="font-weight:700; color:var(--primary); text-decoration:none;">
+            {{ imp.numero }}
+          </a>
+        </td>
+        <td data-label="Proveedor">{{ imp.proveedor_nombre }}</td>
+        <td data-label="Fecha" style="white-space:nowrap;">{{ imp.fecha_pedido }}</td>
+        <td data-label="Estado">
+          {% if imp.estado == 'pendiente_pago' %}
+            <span style="background:#fef3c7; color:#92400e; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">Pend. pago</span>
+          {% elif imp.estado == 'pagado' %}
+            <span style="background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">Pagado</span>
+          {% elif imp.estado == 'en_transito' %}
+            <span style="background:#cffafe; color:#155e75; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">En tránsito</span>
+          {% elif imp.estado == 'en_aduana' %}
+            <span style="background:#ffedd5; color:#c2410c; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">En aduana</span>
+          {% elif imp.estado == 'recibido' %}
+            <span style="background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">Recibido</span>
+          {% else %}
+            <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:10px; font-size:.8em; font-weight:600;">Cerrado</span>
+          {% endif %}
+        </td>
+        <td data-label="FOB" style="text-align:right; font-weight:600;">
+          {{ imp.moneda_origen }} {{ "%.2f"|format(imp.total_fob) }}
+        </td>
+        <td data-label="Gastos" style="text-align:right; color:var(--gray);">
+          {% if imp.total_gastos > 0 %}${{ imp.total_gastos | pesos }}{% else %}—{% endif %}
+        </td>
+        <td data-label="Total ARS" style="text-align:right; font-weight:700;">
+          {% if total_ars > 0 %}${{ total_ars | pesos }}{% else %}—{% endif %}
+        </td>
+        <td data-label="Acciones">
+          <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+             class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+            <i class="bi bi-eye"></i>
+          </a>
+          {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+          <a href="{{ url_for('importaciones.editar', imp_id=imp.id) }}"
+             class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+            <i class="bi bi-pencil"></i>
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('importaciones.lista', page=p, estado=estado_filtro, proveedor_id=proveedor_id_filtro) }}"
+     class="pagination-link {% if p == page %}active{% endif %}"
+     style="{% if p == page %}background:var(--primary);color:white;{% endif %}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:60px 0; color:var(--gray);">
+  <i class="bi bi-globe" style="font-size:3rem; opacity:.4;"></i>
+  <p style="margin-top:12px;">No hay importaciones registradas.</p>
+  {% if tiene_permiso('importaciones', 'crear') %}
+  <a href="{{ url_for('importaciones.nueva') }}" class="btn-primary"
+     style="margin-top:16px; display:inline-block;">Crear primera importación</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
