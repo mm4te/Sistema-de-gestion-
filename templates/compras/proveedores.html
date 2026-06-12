@@ -115,11 +115,20 @@
         <input id="edit-nombre" type="text" name="nombre" required
                style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;">
         <div>
           <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">CUIT</label>
-          <input id="edit-cuit" type="text" name="cuit" placeholder="30-12345678-9"
-                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+          <div class="cuit-afip-row">
+            <input id="edit-cuit" type="text" name="cuit" placeholder="30-12345678-9"
+                   maxlength="13" inputmode="numeric"
+                   style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+            <button type="button" id="edit-btn-afip" disabled class="btn-afip">
+              <span id="edit-afip-label">🔍 AFIP</span>
+              <span id="edit-afip-spin" style="display:none;">⏳</span>
+            </button>
+          </div>
+          <div id="edit-msg-afip" style="display:none;border-radius:6px;padding:6px 10px;
+               font-size:.82rem;margin-top:5px;"></div>
         </div>
         <div>
           <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Condición IVA</label>
@@ -132,7 +141,7 @@
           </select>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;margin-top:12px;">
         <div>
           <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Contacto</label>
           <input id="edit-contacto" type="text" name="contacto"
@@ -179,20 +188,160 @@
 
 {% block scripts %}
 <script>
-  document.querySelectorAll('[id^="modal-"]').forEach(function(m) {
-    m.addEventListener('click', function(e) { if (e.target === this) this.style.display = 'none'; });
+(function () {
+  // ── Cerrar modales al hacer clic en el overlay ────────────────────────────
+  document.querySelectorAll('[id^="modal-"]').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
   });
+
+  // ── Mapeo condición IVA: slug AFIP → opción del select de proveedor ───────
+  var IVA_MAP = {
+    'responsable_inscripto': 'Responsable Inscripto',
+    'monotributista':        'Monotributista',
+    'exento':                'Exento',
+    'consumidor_final':      'Consumidor Final',
+  };
+
+  var BG_AFIP = '#F0FDF4';
+
+  function soloDigitos(s) { return s.replace(/\D/g, ''); }
+  function formatCuit(d) {
+    if (d.length <= 2)  return d;
+    if (d.length <= 10) return d.slice(0, 2) + '-' + d.slice(2);
+    return d.slice(0, 2) + '-' + d.slice(2, 10) + '-' + d.slice(10, 11);
+  }
+
+  // ── Inicializa AFIP para un modal dado (prefix: 'nuevo' | 'edit') ─────────
+  function initAfipProv(prefix) {
+    var cuitEl   = document.getElementById(prefix + '-cuit');
+    var nombreEl = document.getElementById(prefix + '-nombre');
+    var ivaEl    = document.getElementById(prefix + '-iva');
+    var dirEl    = document.getElementById(prefix + '-direccion');
+    var btnAfip  = document.getElementById(prefix + '-btn-afip');
+    var labelEl  = document.getElementById(prefix + '-afip-label');
+    var spinEl   = document.getElementById(prefix + '-afip-spin');
+    var msgEl    = document.getElementById(prefix + '-msg-afip');
+
+    if (!cuitEl || !btnAfip) return;
+
+    // ── Formateo CUIT mientras escribe ───────────────────────────────────────
+    cuitEl.addEventListener('input', function () {
+      var d = soloDigitos(this.value).slice(0, 11);
+      this.value = formatCuit(d);
+      btnAfip.disabled = (d.length < 11);
+    });
+    if (soloDigitos(cuitEl.value).length === 11) btnAfip.disabled = false;
+
+    // ── Marcar campo autocompletado ───────────────────────────────────────────
+    function markAfip(el, val) {
+      if (!el || !val) return;
+      if (el.tagName === 'SELECT') {
+        for (var i = 0; i < el.options.length; i++) {
+          if (el.options[i].value === val) { el.value = val; break; }
+        }
+      } else {
+        el.value = val;
+      }
+      el.style.background  = BG_AFIP;
+      el.dataset.fromAfip  = '1';
+    }
+
+    // ── Quitar fondo verde al editar manualmente ──────────────────────────────
+    [nombreEl, ivaEl, dirEl].forEach(function (el) {
+      if (!el) return;
+      var ev = el.tagName === 'SELECT' ? 'change' : 'input';
+      el.addEventListener(ev, function () {
+        if (this.dataset.fromAfip === '1') {
+          this.style.background = '';
+          this.dataset.fromAfip = '0';
+        }
+      });
+    });
+
+    // ── Mensaje de estado ─────────────────────────────────────────────────────
+    function showMsg(txt, isError) {
+      msgEl.textContent      = txt;
+      msgEl.style.display    = 'block';
+      msgEl.style.background = isError ? '#FEF2F2' : '#F0FDF4';
+      msgEl.style.color      = isError ? '#DC2626' : '#15803D';
+      msgEl.style.border     = '1px solid ' + (isError ? '#FCA5A5' : '#86EFAC');
+    }
+
+    function setLoading(on) {
+      labelEl.style.display = on ? 'none'   : 'inline';
+      spinEl.style.display  = on ? 'inline' : 'none';
+      btnAfip.disabled = on;
+    }
+
+    // ── Consulta al endpoint ya existente ─────────────────────────────────────
+    function consultarAfip() {
+      var d = soloDigitos(cuitEl.value);
+      if (d.length !== 11) return;
+      setLoading(true);
+      msgEl.style.display = 'none';
+      fetch('/clientes/consultar-cuit?cuit=' + d, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        setLoading(false);
+        btnAfip.disabled = false;
+        if (data.ok) {
+          markAfip(nombreEl, data.razon_social || '');
+          markAfip(ivaEl,    IVA_MAP[data.condicion_iva] || '');
+          var partesDir = [data.domicilio, data.localidad, data.provincia]
+            .map(function (p) { return (p || '').trim(); })
+            .filter(function (p) { return p !== ''; });
+          var cp = (data.codigo_postal || '').trim();
+          if (cp) partesDir.push('CP ' + cp);
+          markAfip(dirEl, partesDir.join(', '));
+          showMsg('✅ Datos obtenidos de AFIP. Podés editarlos antes de guardar.', false);
+        } else {
+          showMsg('⚠️ ' + (data.error || 'CUIT no encontrado en AFIP') + '. Completá los datos manualmente.', true);
+        }
+      })
+      .catch(function () {
+        setLoading(false);
+        btnAfip.disabled = false;
+        showMsg('⚠️ No se pudo conectar con AFIP. Completá los datos manualmente.', true);
+      });
+    }
+
+    btnAfip.addEventListener('click', consultarAfip);
+    cuitEl.addEventListener('blur', function () {
+      if (soloDigitos(this.value).length === 11) consultarAfip();
+    });
+  }
+
+  // Inicializar para ambos modales
+  initAfipProv('nuevo');
+  initAfipProv('edit');
+
+  // ── Abrir modal de edición ────────────────────────────────────────────────
   function abrirEditar(id, nombre, cuit, iva, contacto, tel, email, dir, notas) {
     document.getElementById('form-editar-prov').action = '/compras/proveedores/' + id + '/editar';
     document.getElementById('edit-nombre').value    = nombre;
-    document.getElementById('edit-cuit').value      = cuit;
     document.getElementById('edit-iva').value        = iva;
     document.getElementById('edit-contacto').value  = contacto;
     document.getElementById('edit-telefono').value  = tel;
     document.getElementById('edit-email').value     = email;
     document.getElementById('edit-direccion').value = dir;
     document.getElementById('edit-notas').value     = notas;
+    // CUIT: setear valor formateado y habilitar el botón si corresponde
+    var cuitRaw = cuit.replace(/\D/g, '').slice(0, 11);
+    document.getElementById('edit-cuit').value = formatCuit(cuitRaw);
+    document.getElementById('edit-btn-afip').disabled = (cuitRaw.length < 11);
+    // Limpiar fondo y mensaje del AFIP del uso anterior
+    ['edit-nombre','edit-iva','edit-direccion'].forEach(function (fid) {
+      var el = document.getElementById(fid);
+      if (el) { el.style.background = ''; el.dataset.fromAfip = '0'; }
+    });
+    document.getElementById('edit-msg-afip').style.display = 'none';
     document.getElementById('modal-editar-prov').style.display = 'flex';
   }
+
+  // Exponer globalmente para el onclick inline del template
+  window.abrirEditar = abrirEditar;
+})();
 </script>
 {% endblock %}

@@ -696,3 +696,32 @@ table th {
   font-size: 0.85rem;
 }
 .modal-box .pago-card .bi { font-size: 1.5rem; }
+
+/* ── CUIT + botón AFIP: input no se aplasta ────────────────────────────── */
+.cuit-afip-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cuit-afip-row input {
+  flex: 1 1 140px;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+.cuit-afip-row .btn-afip {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  background: #4361EE;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cuit-afip-row .btn-afip:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}

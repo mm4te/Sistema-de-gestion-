@@ -1,17 +1,26 @@
 <div style="margin-bottom:12px;">
   <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Nombre *</label>
-  <input type="text" name="nombre" required
+  <input id="nuevo-nombre" type="text" name="nombre" required
          style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;">
   <div>
     <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">CUIT</label>
-    <input type="text" name="cuit" placeholder="30-12345678-9"
-           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+    <div class="cuit-afip-row">
+      <input id="nuevo-cuit" type="text" name="cuit" placeholder="30-12345678-9"
+             maxlength="13" inputmode="numeric"
+             style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+      <button type="button" id="nuevo-btn-afip" disabled class="btn-afip">
+        <span id="nuevo-afip-label">🔍 AFIP</span>
+        <span id="nuevo-afip-spin" style="display:none;">⏳</span>
+      </button>
+    </div>
+    <div id="nuevo-msg-afip" style="display:none;border-radius:6px;padding:6px 10px;
+         font-size:.82rem;margin-top:5px;"></div>
   </div>
   <div>
     <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Condición IVA</label>
-    <select name="condicion_iva"
+    <select id="nuevo-iva" name="condicion_iva"
             style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
       <option value="">—</option>
       {% for c in condiciones_iva %}
@@ -20,7 +29,7 @@
     </select>
   </div>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;margin-top:12px;">
   <div>
     <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Contacto</label>
     <input type="text" name="contacto"
@@ -40,7 +49,7 @@
   </div>
   <div>
     <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Dirección</label>
-    <input type="text" name="direccion"
+    <input id="nuevo-direccion" type="text" name="direccion"
            style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
   </div>
 </div>
