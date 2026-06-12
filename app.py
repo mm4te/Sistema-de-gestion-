@@ -21,6 +21,7 @@ from routes.gastos import gastos_bp
 from routes.resumen import resumen_bp
 from routes.caja import caja_bp
 from routes.importaciones import importaciones_bp
+from routes.compras import compras_bp
 
 load_dotenv()
 
@@ -99,6 +100,7 @@ def create_app():
     app.register_blueprint(resumen_bp)
     app.register_blueprint(caja_bp)
     app.register_blueprint(importaciones_bp)
+    app.register_blueprint(compras_bp)
 
     csrf.exempt(wbhook_tn)
 

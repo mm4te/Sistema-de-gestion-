@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('compras.lista') }}" class="back-link">← Volver al listado</a>
+<h1 style="margin:12px 0 20px;">🛒 {{ titulo }}</h1>
+
+<div class="card" style="max-width:680px;">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div style="margin-bottom:16px;">
+      <label style="font-weight:600;display:block;margin-bottom:6px;">Proveedor *</label>
+      <select name="proveedor_id" required
+              style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:1rem;">
+        <option value="">Seleccioná un proveedor</option>
+        {% for p in proveedores %}
+        <option value="{{ p.id }}"
+          {{ 'selected' if compra and compra['proveedor_id'] == p.id }}>
+          {{ p.nombre }}{% if p.cuit %} — CUIT {{ p.cuit }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% if not proveedores %}
+      <p style="color:#D97706;font-size:.85rem;margin-top:6px;">
+        No hay proveedores nacionales cargados.
+        <a href="{{ url_for('compras.proveedores') }}">Crear proveedor</a>
+      </p>
+      {% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label style="font-weight:600;display:block;margin-bottom:6px;">Fecha *</label>
+        <input type="date" name="fecha" required
+               value="{{ compra['fecha'] if compra else hoy }}"
+               style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:1rem;">
+      </div>
+      <div>
+        <label style="font-weight:600;display:block;margin-bottom:6px;">
+          N° Factura del proveedor
+          <span style="color:#9CA3AF;font-weight:400;">(opcional)</span>
+        </label>
+        <input type="text" name="numero_factura_proveedor"
+               value="{{ compra['numero_factura_proveedor'] if compra else '' }}"
+               placeholder="Ej: A-0001-00012345"
+               style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:1rem;">
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="font-weight:600;display:block;margin-bottom:6px;">
+        Observaciones <span style="color:#9CA3AF;font-weight:400;">(opcional)</span>
+      </label>
+      <textarea name="observaciones" rows="3"
+                style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:.95rem;resize:vertical;">{{ compra['observaciones'] if compra else '' }}</textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit"
+              style="background:var(--primary);color:white;padding:10px 24px;border:none;border-radius:7px;font-weight:600;font-size:1rem;cursor:pointer;">
+        {% if compra %}Guardar cambios{% else %}Crear compra{% endif %}
+      </button>
+      <a href="{{ url_for('compras.lista') }}"
+         style="padding:10px 20px;background:#F3F4F6;color:#374151;border-radius:7px;text-decoration:none;font-weight:500;">
+        Cancelar
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}

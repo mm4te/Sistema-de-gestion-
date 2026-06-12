@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Compras Nacionales{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+  <h1 style="margin:0;">🛒 Compras Nacionales <span style="font-size:.65em;color:var(--gray);">({{ total }})</span></h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% if tiene_permiso('compras', 'ver') %}
+    <a href="{{ url_for('compras.proveedores') }}"
+       style="background:#6B7280;color:white;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
+      <i class="bi bi-people"></i> Proveedores
+    </a>
+    {% endif %}
+    {% if tiene_permiso('compras', 'crear') %}
+    <a href="{{ url_for('compras.nueva') }}"
+       style="background:var(--primary);color:white;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
+      + Nueva Compra
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{# Filtros #}
+<form method="get" style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Proveedor</label>
+      <select name="proveedor_id" style="padding:6px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+        <option value="">Todos</option>
+        {% for p in proveedores %}
+        <option value="{{ p.id }}" {{ 'selected' if proveedor_id_filtro == p.id }}>{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Estado</label>
+      <select name="estado" style="padding:6px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+        <option value="">Todos</option>
+        {% for val, lbl in estados %}
+        <option value="{{ val }}" {{ 'selected' if estado_filtro == val }}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Desde</label>
+      <input type="date" name="fecha_desde" value="{{ fecha_desde }}"
+             style="padding:6px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ fecha_hasta }}"
+             style="padding:6px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+    </div>
+    <button type="submit" style="padding:7px 16px;background:var(--primary);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;">
+      Filtrar
+    </button>
+    <a href="{{ url_for('compras.lista') }}"
+       style="padding:7px 14px;background:#F3F4F6;color:#374151;border-radius:6px;text-decoration:none;font-size:.9rem;">
+      Limpiar
+    </a>
+  </div>
+</form>
+
+{% set COLOR_ESTADO = {
+  'pendiente_pago':   ('#FEF3C7','#92400E'),
+  'pago_parcial':     ('#DBEAFE','#1D4ED8'),
+  'pagado':           ('#DCFCE7','#16A34A'),
+  'recibido_parcial': ('#EDE9FE','#7C3AED'),
+  'recibido':         ('#D1FAE5','#065F46'),
+  'cerrado':          ('#F3F4F6','#374151'),
+} %}
+
+{% if filas %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Fecha</th>
+        <th>Proveedor</th>
+        <th>Total</th>
+        <th>Estado</th>
+        <th>Factura Prov.</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+      {% set bg, tc = COLOR_ESTADO.get(f['estado'], ('#F3F4F6','#374151')) %}
+      <tr>
+        <td data-label="Número"><strong>{{ f['numero'] }}</strong></td>
+        <td data-label="Fecha">{{ f['fecha'] }}</td>
+        <td data-label="Proveedor">{{ f['proveedor_nombre'] }}</td>
+        <td data-label="Total">$ {{ f['total_compra']|pesos }}</td>
+        <td data-label="Estado">
+          <span style="background:{{ bg }};color:{{ tc }};padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:600;">
+            {{ dict(estados).get(f['estado'], f['estado']) }}
+          </span>
+        </td>
+        <td data-label="Factura Prov.">{{ f['numero_factura_proveedor'] or '—' }}</td>
+        <td data-label="Acciones">
+          <a href="{{ url_for('compras.detalle', compra_id=f['id']) }}"
+             style="color:var(--primary);font-weight:600;text-decoration:none;">🔍 Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:20px;flex-wrap:wrap;">
+  {% if page > 1 %}
+  <a href="{{ url_for('compras.lista', page=page-1, estado=estado_filtro, proveedor_id=proveedor_id_filtro, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}" class="pagination-link">« Anterior</a>
+  {% endif %}
+  {% for p in range(1, total_pages+1) %}
+  {% if p == page %}
+  <span style="background:var(--primary);color:white;padding:6px 12px;border-radius:6px;font-weight:bold;">{{ p }}</span>
+  {% else %}
+  <a href="{{ url_for('compras.lista', page=p, estado=estado_filtro, proveedor_id=proveedor_id_filtro, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}" class="pagination-link">{{ p }}</a>
+  {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="{{ url_for('compras.lista', page=page+1, estado=estado_filtro, proveedor_id=proveedor_id_filtro, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}" class="pagination-link">Siguiente »</a>
+  {% endif %}
+</div>
+{% endif %}
+{% else %}
+<div style="text-align:center;padding:40px;color:var(--gray);">
+  <i class="bi bi-cart-x" style="font-size:2.5rem;"></i>
+  <p style="margin-top:10px;">No hay compras registradas con esos filtros.</p>
+  {% if tiene_permiso('compras', 'crear') %}
+  <a href="{{ url_for('compras.nueva') }}"
+     style="display:inline-block;margin-top:10px;background:var(--primary);color:white;padding:9px 20px;border-radius:6px;text-decoration:none;font-weight:600;">
+    + Nueva Compra
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

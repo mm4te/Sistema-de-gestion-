@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Proveedores Nacionales{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+  <div>
+    <a href="{{ url_for('compras.lista') }}" class="back-link">← Volver a Compras</a>
+    <h1 style="margin:6px 0 0;">Proveedores Nacionales</h1>
+  </div>
+  {% if tiene_permiso('compras', 'crear') %}
+  <button type="button" onclick="document.getElementById('modal-nuevo-prov').style.display='flex'"
+    style="background:var(--primary);color:white;padding:8px 16px;border-radius:6px;border:none;font-weight:600;cursor:pointer;">
+    + Nuevo Proveedor
+  </button>
+  {% endif %}
+</div>
+
+{% if proveedores %}
+<div class="table-responsive">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>CUIT</th>
+        <th>Condición IVA</th>
+        <th>Contacto</th>
+        <th>Teléfono</th>
+        <th>Email</th>
+        {% if tiene_permiso('compras', 'editar') or tiene_permiso('compras', 'eliminar') %}
+        <th>Acciones</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in proveedores %}
+      <tr>
+        <td data-label="Nombre"><strong>{{ p['nombre'] }}</strong>
+          {% if p['direccion'] %}<br><small style="color:var(--gray);">{{ p['direccion'] }}</small>{% endif %}
+        </td>
+        <td data-label="CUIT">{{ p['cuit'] or '—' }}</td>
+        <td data-label="Cond. IVA">{{ p['condicion_iva'] or '—' }}</td>
+        <td data-label="Contacto">{{ p['contacto'] or '—' }}</td>
+        <td data-label="Teléfono">{{ p['telefono'] or '—' }}</td>
+        <td data-label="Email">{{ p['email'] or '—' }}</td>
+        {% if tiene_permiso('compras', 'editar') or tiene_permiso('compras', 'eliminar') %}
+        <td data-label="Acciones" style="white-space:nowrap;">
+          {% if tiene_permiso('compras', 'editar') %}
+          <button type="button"
+            onclick="abrirEditar({{ p['id'] }}, '{{ p['nombre']|replace("'","\\'")|e }}',
+              '{{ p['cuit'] or ''}}', '{{ p['condicion_iva'] or ''}}',
+              '{{ p['contacto'] or ''}}', '{{ p['telefono'] or ''}}',
+              '{{ p['email'] or ''}}', '{{ p['direccion'] or ''}}',
+              '{{ p['notas'] or '' }}')"
+            style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:.9rem;padding:0;margin-right:8px;">
+            ✏️ Editar
+          </button>
+          {% endif %}
+          {% if tiene_permiso('compras', 'eliminar') %}
+          <form method="post" action="{{ url_for('compras.eliminar_proveedor_route', prov_id=p['id']) }}"
+                style="display:inline;"
+                onsubmit="return confirm('¿Eliminar proveedor {{ p['nombre']|replace("'","\\'")|e }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:.9rem;padding:0;">
+              🗑️ Eliminar
+            </button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p style="color:var(--gray);">No hay proveedores nacionales cargados.</p>
+{% endif %}
+
+{# ── Modal: Nuevo proveedor ───────────────────────────────────────────────── #}
+{% if tiene_permiso('compras', 'crear') %}
+<div id="modal-nuevo-prov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);
+     z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px 32px;max-width:540px;width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto;">
+    <h3 style="margin:0 0 18px;">Nuevo Proveedor Nacional</h3>
+    <form method="post" action="{{ url_for('compras.nuevo_proveedor') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% include 'compras/_form_proveedor.html' %}
+      <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('modal-nuevo-prov').style.display='none'"
+          style="padding:9px 20px;border-radius:7px;border:1px solid #E5E7EB;background:white;color:#374151;cursor:pointer;font-weight:500;">
+          Cancelar
+        </button>
+        <button type="submit"
+          style="padding:9px 20px;border-radius:7px;border:none;background:var(--primary);color:white;cursor:pointer;font-weight:600;">
+          Crear proveedor
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ── Modal: Editar proveedor ──────────────────────────────────────────────── #}
+{% if tiene_permiso('compras', 'editar') %}
+<div id="modal-editar-prov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);
+     z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px 32px;max-width:540px;width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto;">
+    <h3 style="margin:0 0 18px;">Editar Proveedor</h3>
+    <form id="form-editar-prov" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Nombre *</label>
+        <input id="edit-nombre" type="text" name="nombre" required
+               style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">CUIT</label>
+          <input id="edit-cuit" type="text" name="cuit" placeholder="30-12345678-9"
+                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Condición IVA</label>
+          <select id="edit-iva" name="condicion_iva"
+                  style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+            <option value="">—</option>
+            {% for c in condiciones_iva %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Contacto</label>
+          <input id="edit-contacto" type="text" name="contacto"
+                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Teléfono</label>
+          <input id="edit-telefono" type="text" name="telefono"
+                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Email</label>
+          <input id="edit-email" type="email" name="email"
+                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Dirección</label>
+          <input id="edit-direccion" type="text" name="direccion"
+                 style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Notas</label>
+        <textarea id="edit-notas" name="notas" rows="2"
+                  style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('modal-editar-prov').style.display='none'"
+          style="padding:9px 20px;border-radius:7px;border:1px solid #E5E7EB;background:white;color:#374151;cursor:pointer;font-weight:500;">
+          Cancelar
+        </button>
+        <button type="submit"
+          style="padding:9px 20px;border-radius:7px;border:none;background:var(--primary);color:white;cursor:pointer;font-weight:600;">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('[id^="modal-"]').forEach(function(m) {
+    m.addEventListener('click', function(e) { if (e.target === this) this.style.display = 'none'; });
+  });
+  function abrirEditar(id, nombre, cuit, iva, contacto, tel, email, dir, notas) {
+    document.getElementById('form-editar-prov').action = '/compras/proveedores/' + id + '/editar';
+    document.getElementById('edit-nombre').value    = nombre;
+    document.getElementById('edit-cuit').value      = cuit;
+    document.getElementById('edit-iva').value        = iva;
+    document.getElementById('edit-contacto').value  = contacto;
+    document.getElementById('edit-telefono').value  = tel;
+    document.getElementById('edit-email').value     = email;
+    document.getElementById('edit-direccion').value = dir;
+    document.getElementById('edit-notas').value     = notas;
+    document.getElementById('modal-editar-prov').style.display = 'flex';
+  }
+</script>
+{% endblock %}

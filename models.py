@@ -393,6 +393,58 @@ def init_db():
     )''')
     c.execute("CREATE INDEX IF NOT EXISTS idx_import_pagos_imp ON importacion_pagos(importacion_id)")
 
+    # ── Extender proveedores: tipo, cuit, condicion_iva, direccion ────────────
+    _cols_prov = [r[1] for r in c.execute("PRAGMA table_info(proveedores)").fetchall()]
+    for _col, _def in [
+        ('tipo',          "TEXT NOT NULL DEFAULT 'internacional'"),
+        ('cuit',          'TEXT'),
+        ('condicion_iva', 'TEXT'),
+        ('direccion',     'TEXT'),
+    ]:
+        if _col not in _cols_prov:
+            c.execute(f"ALTER TABLE proveedores ADD COLUMN {_col} {_def}")
+
+    # ── Compras Nacionales ────────────────────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS compras (
+        id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+        proveedor_id             INTEGER NOT NULL,
+        numero                   TEXT UNIQUE NOT NULL,
+        fecha                    TEXT NOT NULL,
+        estado                   TEXT NOT NULL DEFAULT 'pendiente_pago',
+        numero_factura_proveedor TEXT,
+        observaciones            TEXT,
+        FOREIGN KEY (proveedor_id) REFERENCES proveedores(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS compra_items (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        compra_id        INTEGER NOT NULL,
+        producto_id      INTEGER,
+        descripcion      TEXT NOT NULL,
+        cantidad         REAL NOT NULL DEFAULT 1,
+        costo_unitario   REAL NOT NULL DEFAULT 0,
+        cantidad_recibida REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (compra_id)   REFERENCES compras(id),
+        FOREIGN KEY (producto_id) REFERENCES productos(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS compra_pagos (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        compra_id      INTEGER NOT NULL,
+        monto          REAL    NOT NULL DEFAULT 0,
+        metodo_pago    TEXT,
+        fecha_pago     TEXT    NOT NULL,
+        comprobante    TEXT,
+        registrado_por INTEGER,
+        FOREIGN KEY (compra_id)      REFERENCES compras(id),
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id)
+    )''')
+
+    c.execute("CREATE INDEX IF NOT EXISTS idx_compras_proveedor ON compras(proveedor_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_compras_estado    ON compras(estado)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_compra_items_cmp  ON compra_items(compra_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_compra_pagos_cmp  ON compra_pagos(compra_id)")
+
     _cols_imp = [r[1] for r in c.execute("PRAGMA table_info(importaciones)").fetchall()]
     for _col, _def in [
         ('naviera',         'TEXT'),
@@ -490,6 +542,17 @@ def init_db():
         (5,'importaciones','ver'),
     ]
     for row in _PERMISOS_IMP:
+        c.execute("INSERT OR IGNORE INTO rol_permisos (rol_id, modulo, accion) VALUES (?,?,?)", row)
+
+    _PERMISOS_COMP = [
+        (2,'compras','ver'), (2,'compras','crear'), (2,'compras','editar'),
+        (2,'compras','eliminar'), (2,'compras','cerrar'),
+        (3,'compras','ver'), (3,'compras','crear'), (3,'compras','editar'),
+        (3,'compras','cerrar'),
+        (4,'compras','ver'),
+        (5,'compras','ver'),
+    ]
+    for row in _PERMISOS_COMP:
         c.execute("INSERT OR IGNORE INTO rol_permisos (rol_id, modulo, accion) VALUES (?,?,?)", row)
 
     # Usuarios existentes sin rol → SuperAdmin

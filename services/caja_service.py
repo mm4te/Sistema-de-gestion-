@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 METODOS_CAJA = ['efectivo', 'transferencia', 'tarjeta', 'otro']
 TIPOS_CAJA   = ['ingreso', 'egreso']
-ORIGENES_CAJA = ['venta', 'cancelacion', 'gasto', 'importacion', 'manual']
+ORIGENES_CAJA = ['venta', 'cancelacion', 'gasto', 'importacion', 'compra', 'manual']
 
 
 def _normalizar_metodo(metodo):

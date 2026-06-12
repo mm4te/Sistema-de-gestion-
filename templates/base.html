@@ -43,14 +43,21 @@
       <a href="/presupuestos" {% if request.blueprint == 'presupuestos' %}class="active"{% endif %}>
         <i class="bi bi-file-earmark-text"></i><span>Presupuestos</span>
       </a>
-      {% if tiene_permiso('importaciones', 'ver') %}
+      {% if tiene_permiso('importaciones', 'ver') or tiene_permiso('compras', 'ver') %}
       <div class="nav-section-label">Compras</div>
+      {% if tiene_permiso('compras', 'ver') %}
+      <a href="{{ url_for('compras.lista') }}" {% if request.blueprint == 'compras' and request.endpoint != 'compras.proveedores' %}class="active"{% endif %}>
+        <i class="bi bi-cart-check"></i><span>Compras Nac.</span>
+      </a>
+      {% endif %}
+      {% if tiene_permiso('importaciones', 'ver') %}
       <a href="{{ url_for('importaciones.lista') }}" {% if request.blueprint == 'importaciones' and request.endpoint != 'importaciones.dashboard' %}class="active"{% endif %}>
         <i class="bi bi-globe"></i><span>Importaciones</span>
       </a>
       <a href="{{ url_for('importaciones.dashboard') }}" {% if request.endpoint == 'importaciones.dashboard' %}class="active"{% endif %}>
-        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+        <i class="bi bi-speedometer2"></i><span>Dashboard Imp.</span>
       </a>
+      {% endif %}
       {% endif %}
 
       {% if tiene_permiso('gastos', 'ver') %}

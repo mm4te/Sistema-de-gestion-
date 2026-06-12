@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% block title %}Compra {{ compra['numero'] }}{% endblock %}
+
+{% set ESTADO_LABEL = {
+  'pendiente_pago':   'Pendiente de pago',
+  'pago_parcial':     'Pago parcial',
+  'pagado':           'Pagado',
+  'recibido_parcial': 'Recibido parcial',
+  'recibido':         'Recibido',
+  'cerrado':          'Cerrado',
+} %}
+{% set ESTADO_COLOR = {
+  'pendiente_pago':   '#FEF3C7',
+  'pago_parcial':     '#DBEAFE',
+  'pagado':           '#DCFCE7',
+  'recibido_parcial': '#EDE9FE',
+  'recibido':         '#D1FAE5',
+  'cerrado':          '#F3F4F6',
+} %}
+{% set ESTADO_TEXT = {
+  'pendiente_pago':   '#92400E',
+  'pago_parcial':     '#1D4ED8',
+  'pagado':           '#16A34A',
+  'recibido_parcial': '#7C3AED',
+  'recibido':         '#065F46',
+  'cerrado':          '#374151',
+} %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+  <a href="{{ url_for('compras.lista') }}" class="back-link">← Volver al listado</a>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% if compra['estado'] != 'cerrado' and tiene_permiso('compras', 'editar') %}
+    <a href="{{ url_for('compras.editar', compra_id=compra['id']) }}"
+       style="background:#6B7280;color:white;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
+      ✏️ Editar
+    </a>
+    {% endif %}
+    <a href="{{ url_for('compras.generar_pdf_route', compra_id=compra['id']) }}"
+       style="background:#DC2626;color:white;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
+      📄 Descargar PDF
+    </a>
+    {% if compra['estado'] not in ('cerrado',) and tiene_permiso('compras', 'cerrar') %}
+    <form method="post" action="{{ url_for('compras.cerrar', compra_id=compra['id']) }}"
+          onsubmit="return confirm('¿Cerrar esta compra? Esto aplicará los costos al inventario.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              style="background:#16A34A;color:white;padding:8px 14px;border-radius:6px;border:none;font-weight:600;font-size:.9em;cursor:pointer;">
+        ✅ Cerrar compra
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<h1 style="margin-bottom:4px;">
+  🛒 Compra {{ compra['numero'] }}
+  <span style="background:{{ ESTADO_COLOR.get(compra['estado'],'#F3F4F6') }};
+               color:{{ ESTADO_TEXT.get(compra['estado'],'#374151') }};
+               padding:4px 14px;border-radius:20px;font-size:.6em;font-weight:700;vertical-align:middle;margin-left:8px;">
+    {{ ESTADO_LABEL.get(compra['estado'], compra['estado']) }}
+  </span>
+</h1>
+
+{# ── Datos generales ──────────────────────────────────────────────────────── #}
+<div class="card" style="margin:16px 0;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+    <p><strong>Proveedor:</strong> {{ compra['proveedor_nombre'] }}</p>
+    <p><strong>Fecha:</strong> {{ compra['fecha'] }}</p>
+    <p><strong>Factura proveedor:</strong> {{ compra['numero_factura_proveedor'] or '—' }}</p>
+    {% if compra['cuit'] %}<p><strong>CUIT:</strong> {{ compra['cuit'] }}</p>{% endif %}
+    {% if compra['condicion_iva'] %}<p><strong>Condición IVA:</strong> {{ compra['condicion_iva'] }}</p>{% endif %}
+  </div>
+  {% if compra['observaciones'] %}
+  <p style="margin-top:10px;padding:10px 14px;background:#F9FAFB;border-left:3px solid var(--primary);border-radius:0 6px 6px 0;font-size:.92rem;">
+    {{ compra['observaciones'] }}
+  </p>
+  {% endif %}
+</div>
+
+{# ── Resumen de totales ────────────────────────────────────────────────────── #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+  <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:14px;text-align:center;">
+    <div style="font-size:.82rem;color:var(--gray);">Total compra</div>
+    <div style="font-size:1.3rem;font-weight:700;color:var(--primary);">$ {{ totales.total_compra|pesos }}</div>
+  </div>
+  <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:14px;text-align:center;">
+    <div style="font-size:.82rem;color:var(--gray);">Total pagado</div>
+    <div style="font-size:1.3rem;font-weight:700;color:#16A34A;">$ {{ totales.total_pagado|pesos }}</div>
+  </div>
+  <div style="background:white;border:1px solid {{ '#DC2626' if totales.saldo > 0 else '#E5E7EB' }};border-radius:8px;padding:14px;text-align:center;">
+    <div style="font-size:.82rem;color:var(--gray);">Saldo pendiente</div>
+    <div style="font-size:1.3rem;font-weight:700;color:{{ '#DC2626' if totales.saldo > 0 else '#16A34A' }};">
+      $ {{ totales.saldo|pesos }}
+    </div>
+  </div>
+</div>
+
+{# ── Productos ─────────────────────────────────────────────────────────────── #}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+  <h2 style="margin:0;">Productos</h2>
+</div>
+
+{% if items %}
+<div class="table-responsive" style="margin-bottom:12px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Descripción</th>
+        <th>Cantidad</th>
+        <th>Costo Unit. (ARS)</th>
+        <th>Subtotal</th>
+        <th>Recibido</th>
+        {% if compra['estado'] != 'cerrado' and tiene_permiso('compras', 'editar') %}
+        <th></th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td data-label="Descripción">
+          {{ it['descripcion'] }}
+          {% if it['sku'] %}<br><small style="color:var(--gray);">SKU: {{ it['sku'] }}</small>{% endif %}
+        </td>
+        <td data-label="Cantidad">{{ it['cantidad']|int }}</td>
+        <td data-label="Costo Unit.">$ {{ it['costo_unitario']|pesos }}</td>
+        <td data-label="Subtotal">$ {{ (it['cantidad'] * it['costo_unitario'])|pesos }}</td>
+        <td data-label="Recibido">
+          {% set recibido = it['cantidad_recibida']|int %}
+          {% set total_it = it['cantidad']|int %}
+          {% if recibido >= total_it %}
+          <span style="color:#16A34A;font-weight:600;">{{ recibido }}/{{ total_it }} ✓</span>
+          {% elif recibido > 0 %}
+          <span style="color:#D97706;font-weight:600;">{{ recibido }}/{{ total_it }}</span>
+          {% else %}
+          <span style="color:#9CA3AF;">0/{{ total_it }}</span>
+          {% endif %}
+        </td>
+        {% if compra['estado'] != 'cerrado' and tiene_permiso('compras', 'editar') %}
+        <td>
+          <form method="post" action="{{ url_for('compras.eliminar_item_route', compra_id=compra['id'], item_id=it['id']) }}"
+                onsubmit="return confirm('¿Eliminar este ítem?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:.9rem;">🗑️</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:#F9FAFB;font-weight:700;">
+        <td colspan="3" style="text-align:right;">Total</td>
+        <td>$ {{ totales.total_compra|pesos }}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% else %}
+<p style="color:var(--gray);margin-bottom:12px;">No hay productos en esta compra.</p>
+{% endif %}
+
+{# Agregar ítem #}
+{% if compra['estado'] != 'cerrado' and tiene_permiso('compras', 'editar') %}
+<details style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:14px;margin-bottom:24px;">
+  <summary style="font-weight:600;cursor:pointer;list-style:none;">➕ Agregar producto</summary>
+  <form method="post" action="{{ url_for('compras.agregar_item_route', compra_id=compra['id']) }}"
+        style="margin-top:14px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Producto existente (opcional)</label>
+      <select name="producto_id" style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+        <option value="">— Nuevo producto —</option>
+        {% for p in productos %}
+        <option value="{{ p.id }}">{{ p.descripcion }} ({{ p.sku }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Descripción *</label>
+      <input type="text" name="descripcion" placeholder="Para producto nuevo"
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Cantidad *</label>
+      <input type="number" name="cantidad" step="1" min="1" value="1"
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;" required>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Costo unit. (ARS) *</label>
+      <input type="number" name="costo_unitario" step="0.01" min="0" value="0"
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;" required>
+    </div>
+    <button type="submit"
+            style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap;">
+      Agregar
+    </button>
+  </form>
+</details>
+{% endif %}
+
+{# ── Pagos al proveedor ────────────────────────────────────────────────────── #}
+<h2>Pagos al proveedor</h2>
+
+{% if pagos %}
+<div class="table-responsive" style="margin-bottom:12px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Monto</th>
+        <th>Método</th>
+        <th>Comprobante</th>
+        <th>Registrado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pg in pagos %}
+      <tr>
+        <td data-label="Fecha">{{ pg['fecha_pago'][:10] }}</td>
+        <td data-label="Monto" style="font-weight:600;">$ {{ pg['monto']|pesos }}</td>
+        <td data-label="Método">
+          {% if pg['metodo_pago'] == 'efectivo' %}💵 Efectivo
+          {% elif pg['metodo_pago'] == 'transferencia' %}📲 Transferencia
+          {% elif pg['metodo_pago'] == 'tarjeta' %}💳 Tarjeta
+          {% else %}{{ pg['metodo_pago'] or '—' }}{% endif %}
+        </td>
+        <td data-label="Comprobante">{{ pg['comprobante'] or '—' }}</td>
+        <td data-label="Registrado">{{ pg['usuario_nombre'] or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p style="color:var(--gray);margin-bottom:12px;">Sin pagos registrados.</p>
+{% endif %}
+
+{# Registrar pago #}
+{% if compra['estado'] in ('pendiente_pago', 'pago_parcial') and tiene_permiso('compras', 'editar') %}
+<details style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:14px;margin-bottom:24px;">
+  <summary style="font-weight:600;cursor:pointer;list-style:none;">💳 Registrar pago</summary>
+  <form method="post" action="{{ url_for('compras.registrar_pago_route', compra_id=compra['id']) }}"
+        style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Monto (ARS) *</label>
+      <input type="number" name="monto" step="0.01" min="0.01"
+             value="{{ totales.saldo }}"
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;" required>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Fecha pago *</label>
+      <input type="date" name="fecha_pago" value="{{ hoy }}"
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;" required>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">Método</label>
+      <select name="metodo_pago" style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+        {% for m in metodos_pago %}
+        <option value="{{ m }}">{{ m|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px;">
+        Comprobante <span style="color:#9CA3AF;font-weight:400;">(ref.)</span>
+      </label>
+      <input type="text" name="comprobante" placeholder="N° transferencia, recibo..."
+             style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:6px;font-size:.9rem;">
+    </div>
+    <button type="submit"
+            style="padding:8px 16px;background:#16A34A;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap;">
+      Registrar
+    </button>
+  </form>
+</details>
+{% endif %}
+
+{# ── Recepción de mercadería ───────────────────────────────────────────────── #}
+{% if compra['estado'] in ('pagado', 'pago_parcial', 'pendiente_pago', 'recibido_parcial') and items and tiene_permiso('compras', 'editar') %}
+<h2>Recepción de mercadería</h2>
+<form method="post" action="{{ url_for('compras.registrar_recepcion_route', compra_id=compra['id']) }}"
+      style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin-bottom:24px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="color:var(--gray);font-size:.88rem;margin-bottom:12px;">
+    Ingresá la cantidad adicional recibida en este envío (no el total acumulado).
+  </p>
+  <div style="display:grid;gap:10px;">
+    {% for it in items %}
+    {% set pendiente = it['cantidad']|int - it['cantidad_recibida']|int %}
+    {% if pendiente > 0 %}
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #F3F4F6;">
+      <span>
+        <strong>{{ it['descripcion'] }}</strong>
+        <small style="color:var(--gray);">— Pendiente: {{ pendiente }} de {{ it['cantidad']|int }}</small>
+      </span>
+      <input type="number" name="recv_{{ it['id'] }}" step="1" min="0" max="{{ pendiente }}" value="0"
+             style="width:90px;padding:6px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;text-align:center;">
+      <span style="color:var(--gray);font-size:.85rem;">unid.</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <button type="submit" style="margin-top:14px;padding:9px 20px;background:#7C3AED;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;">
+    Registrar recepción
+  </button>
+</form>
+{% endif %}
+
+{# ── Info cierre ──────────────────────────────────────────────────────────── #}
+{% if compra['estado'] == 'cerrado' %}
+<div style="background:#DCFCE7;border:1px solid #BBF7D0;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
+  <strong style="color:#16A34A;">✅ Compra cerrada</strong>
+  <p style="margin:4px 0 0;color:#065F46;font-size:.9rem;">
+    Los costos han sido aplicados al inventario.
+  </p>
+</div>
+{% endif %}
+{% endblock %}

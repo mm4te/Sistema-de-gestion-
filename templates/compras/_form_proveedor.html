@@ -1,0 +1,51 @@
+<div style="margin-bottom:12px;">
+  <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Nombre *</label>
+  <input type="text" name="nombre" required
+         style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">CUIT</label>
+    <input type="text" name="cuit" placeholder="30-12345678-9"
+           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+  </div>
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Condición IVA</label>
+    <select name="condicion_iva"
+            style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+      <option value="">—</option>
+      {% for c in condiciones_iva %}
+      <option value="{{ c }}">{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Contacto</label>
+    <input type="text" name="contacto"
+           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+  </div>
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Teléfono</label>
+    <input type="text" name="telefono"
+           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Email</label>
+    <input type="email" name="email"
+           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+  </div>
+  <div>
+    <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Dirección</label>
+    <input type="text" name="direccion"
+           style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;">
+  </div>
+</div>
+<div style="margin-bottom:12px;">
+  <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:4px;">Notas</label>
+  <textarea name="notas" rows="2"
+            style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:.95rem;resize:vertical;"></textarea>
+</div>

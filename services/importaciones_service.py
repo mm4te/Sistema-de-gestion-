@@ -62,9 +62,14 @@ def _generar_numero(conn):
 
 # ── Proveedores ───────────────────────────────────────────────────────────────
 
-def listar_proveedores():
+def listar_proveedores(tipo=None):
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM proveedores ORDER BY nombre ASC").fetchall()
+    if tipo:
+        rows = conn.execute(
+            "SELECT * FROM proveedores WHERE tipo=? ORDER BY nombre ASC", (tipo,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM proveedores ORDER BY nombre ASC").fetchall()
     conn.close()
     return rows
 
@@ -76,14 +81,19 @@ def get_proveedor(proveedor_id):
     return row
 
 
-def crear_proveedor(nombre, pais=None, contacto=None, telefono=None, email=None, notas=None):
+def crear_proveedor(nombre, pais=None, contacto=None, telefono=None, email=None,
+                    notas=None, tipo='internacional', cuit=None,
+                    condicion_iva=None, direccion=None):
     if not nombre:
         return False, "El nombre es requerido"
     conn = get_conn()
     try:
         conn.execute(
-            "INSERT INTO proveedores (nombre, pais, contacto, telefono, email, notas) VALUES (?,?,?,?,?,?)",
-            (nombre, pais, contacto, telefono, email, notas)
+            """INSERT INTO proveedores
+               (nombre, pais, contacto, telefono, email, notas, tipo, cuit, condicion_iva, direccion)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (nombre, pais, contacto, telefono, email, notas,
+             tipo or 'internacional', cuit or None, condicion_iva or None, direccion or None)
         )
         conn.commit()
         new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -97,14 +107,21 @@ def crear_proveedor(nombre, pais=None, contacto=None, telefono=None, email=None,
 
 
 def actualizar_proveedor(proveedor_id, nombre, pais=None, contacto=None,
-                          telefono=None, email=None, notas=None):
+                          telefono=None, email=None, notas=None,
+                          tipo='internacional', cuit=None,
+                          condicion_iva=None, direccion=None):
     if not nombre:
         return False, "El nombre es requerido"
     conn = get_conn()
     try:
         conn.execute(
-            "UPDATE proveedores SET nombre=?, pais=?, contacto=?, telefono=?, email=?, notas=? WHERE id=?",
-            (nombre, pais, contacto, telefono, email, notas, proveedor_id)
+            """UPDATE proveedores
+               SET nombre=?, pais=?, contacto=?, telefono=?, email=?, notas=?,
+                   tipo=?, cuit=?, condicion_iva=?, direccion=?
+               WHERE id=?""",
+            (nombre, pais, contacto, telefono, email, notas,
+             tipo or 'internacional', cuit or None, condicion_iva or None,
+             direccion or None, proveedor_id)
         )
         conn.commit()
         return True, None
@@ -117,12 +134,17 @@ def actualizar_proveedor(proveedor_id, nombre, pais=None, contacto=None,
 
 def eliminar_proveedor(proveedor_id):
     conn = get_conn()
-    tiene = conn.execute(
+    tiene_imp = conn.execute(
         "SELECT COUNT(*) FROM importaciones WHERE proveedor_id = ?", (proveedor_id,)
     ).fetchone()[0]
+    tiene_comp = conn.execute(
+        "SELECT COUNT(*) FROM compras WHERE proveedor_id = ?", (proveedor_id,)
+    ).fetchone()[0]
     conn.close()
-    if tiene > 0:
+    if tiene_imp > 0:
         return False, "El proveedor tiene importaciones asociadas y no puede eliminarse"
+    if tiene_comp > 0:
+        return False, "El proveedor tiene compras nacionales asociadas y no puede eliminarse"
     conn = get_conn()
     conn.execute("DELETE FROM proveedores WHERE id = ?", (proveedor_id,))
     conn.commit()
