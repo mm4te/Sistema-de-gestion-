@@ -101,9 +101,33 @@ def init_db():
         ("nota_credito_pdf_path", "TEXT"),
         ("nota_credito_fecha",    "TEXT"),
         ("nota_credito_motivo",   "TEXT"),
+        # Descuentos
+        ("subtotal",              "REAL"),
+        ("descuento_tipo",        "TEXT NOT NULL DEFAULT 'ninguno'"),
+        ("descuento_valor",       "REAL NOT NULL DEFAULT 0"),
+        # Pagos parciales / señas
+        ("estado_pago",           "TEXT NOT NULL DEFAULT 'pagado_completo'"),
+        ("monto_pagado",          "REAL NOT NULL DEFAULT 0"),
+        ("saldo_pendiente",       "REAL NOT NULL DEFAULT 0"),
     ]:
         if col not in columnas_ventas:
             c.execute(f"ALTER TABLE ventas ADD COLUMN {col} {defn}")
+    # Retrocompatibilidad: llenar subtotal en ventas anteriores que no lo tienen
+    c.execute("UPDATE ventas SET subtotal = total WHERE subtotal IS NULL")
+    c.execute("UPDATE ventas SET monto_pagado = total WHERE monto_pagado = 0 AND estado != 'cancelada'")
+
+    c.execute('''CREATE TABLE IF NOT EXISTS venta_pagos (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id       INTEGER NOT NULL,
+        monto          REAL    NOT NULL,
+        metodo_pago    TEXT,
+        fecha_pago     TEXT    NOT NULL,
+        tipo           TEXT    NOT NULL DEFAULT 'saldo_final',
+        registrado_por INTEGER,
+        observaciones  TEXT,
+        FOREIGN KEY (venta_id) REFERENCES ventas(id)
+    )''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_venta_pagos_venta ON venta_pagos(venta_id)")
     columnas_clientes = [r[1] for r in c.execute("PRAGMA table_info(clientes)").fetchall()]
     for col, definition in [
         ("dni",                  "TEXT"),
@@ -340,6 +364,49 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_import_items_imp        ON importacion_items(importacion_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_import_gastos_imp       ON importacion_gastos(importacion_id)")
 
+    c.execute('''CREATE TABLE IF NOT EXISTS importacion_documentos (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        importacion_id  INTEGER NOT NULL,
+        tipo_documento  TEXT NOT NULL,
+        nombre_archivo  TEXT NOT NULL,
+        ruta_archivo    TEXT NOT NULL,
+        descripcion     TEXT,
+        subido_por      INTEGER,
+        fecha_subida    TEXT NOT NULL,
+        FOREIGN KEY (importacion_id) REFERENCES importaciones(id),
+        FOREIGN KEY (subido_por)     REFERENCES usuarios(id)
+    )''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_import_docs_imp ON importacion_documentos(importacion_id)")
+
+    c.execute('''CREATE TABLE IF NOT EXISTS importacion_pagos (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        importacion_id   INTEGER NOT NULL,
+        monto            REAL    NOT NULL DEFAULT 0,
+        tipo_cambio      REAL    NOT NULL DEFAULT 1,
+        monto_ars        REAL    NOT NULL DEFAULT 0,
+        fecha_pago       TEXT    NOT NULL,
+        metodo_pago      TEXT,
+        comprobante      TEXT,
+        registrado_por   INTEGER,
+        FOREIGN KEY (importacion_id) REFERENCES importaciones(id),
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id)
+    )''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_import_pagos_imp ON importacion_pagos(importacion_id)")
+
+    _cols_imp = [r[1] for r in c.execute("PRAGMA table_info(importaciones)").fetchall()]
+    for _col, _def in [
+        ('naviera',         'TEXT'),
+        ('numero_tracking', 'TEXT'),
+        ('eta',             'TEXT'),
+        ('contenedor',      'TEXT'),
+    ]:
+        if _col not in _cols_imp:
+            c.execute(f"ALTER TABLE importaciones ADD COLUMN {_col} {_def}")
+
+    _cols_items = [r[1] for r in c.execute("PRAGMA table_info(importacion_items)").fetchall()]
+    if 'cantidad_recibida' not in _cols_items:
+        c.execute("ALTER TABLE importacion_items ADD COLUMN cantidad_recibida REAL DEFAULT 0")
+
     # ── Migrar remitos: campos de retiro por terceros ────────────────────────
     columnas_remitos = [r[1] for r in c.execute("PRAGMA table_info(remitos)").fetchall()]
     for col, definition in [
@@ -571,7 +638,9 @@ def get_cliente_by_id(cliente_id):
 # === Ventas ===
 
 def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None,
-                    monto_recibido=None, vuelto=None, creado_por=None):
+                    monto_recibido=None, vuelto=None, creado_por=None,
+                    descuento_tipo='ninguno', descuento_valor=0,
+                    es_sena=False, monto_sena=None):
     conn = get_conn()
     try:
         # Verificar stock
@@ -582,21 +651,51 @@ def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None,
             if not row or (row['stock'] is not None and row['stock'] < item['cantidad']):
                 return False, f"Stock insuficiente para {item['descripcion']}"
 
-        # Registrar venta
-        fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        total_venta = sum(item['precio'] * item['cantidad'] for item in carrito)
+        fecha    = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        subtotal = sum(item['precio'] * item['cantidad'] for item in carrito)
+
+        # Calcular descuento
+        descuento_tipo  = descuento_tipo or 'ninguno'
+        descuento_valor = float(descuento_valor or 0)
+        if descuento_tipo == 'porcentaje' and 0 < descuento_valor <= 100:
+            descuento_monto = subtotal * descuento_valor / 100
+        elif descuento_tipo == 'monto' and 0 < descuento_valor < subtotal:
+            descuento_monto = descuento_valor
+        else:
+            descuento_tipo  = 'ninguno'
+            descuento_valor = 0
+            descuento_monto = 0
+        total_venta = subtotal - descuento_monto
+
+        # Determinar estado de pago y monto ingresado
+        if es_sena and monto_sena and 0 < float(monto_sena) < total_venta:
+            monto_sena      = float(monto_sena)
+            estado_pago     = 'sena'
+            monto_pagado    = monto_sena
+            saldo_pendiente = total_venta - monto_sena
+        else:
+            monto_sena      = None
+            estado_pago     = 'pagado_completo'
+            monto_pagado    = total_venta
+            saldo_pendiente = 0
 
         conn.execute(
-            "INSERT INTO ventas (fecha, cliente_id, total, metodo_pago, cuotas, monto_recibido, vuelto)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (fecha, cliente_id, total_venta, metodo_pago, cuotas, monto_recibido, vuelto)
+            """INSERT INTO ventas
+               (fecha, cliente_id, total, metodo_pago, cuotas, monto_recibido, vuelto,
+                subtotal, descuento_tipo, descuento_valor,
+                estado_pago, monto_pagado, saldo_pendiente)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (fecha, cliente_id, total_venta, metodo_pago, cuotas, monto_recibido, vuelto,
+             subtotal, descuento_tipo, descuento_valor,
+             estado_pago, monto_pagado, saldo_pendiente)
         )
         venta_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        # Registrar detalle y descontar stock
+        # Detalle y stock
         for item in carrito:
             conn.execute(
-                "INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)",
+                "INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario)"
+                " VALUES (?, ?, ?, ?)",
                 (venta_id, item['id'], item['cantidad'], item['precio'])
             )
             conn.execute(
@@ -604,17 +703,26 @@ def registrar_venta(cliente_id, carrito, metodo_pago, cuotas=None,
                 (item['cantidad'], item['id'])
             )
 
-        # Registrar ingreso en caja (misma transacción)
+        # Ingreso en caja por el monto efectivamente cobrado
         from services.caja_service import registrar_movimiento_en_conn
+        monto_caja = monto_sena if monto_sena else total_venta
+        desc_caja  = f"Venta #{venta_id}" + (" (seña)" if monto_sena else "")
         registrar_movimiento_en_conn(
             conn, 'ingreso', 'venta', venta_id,
-            f"Venta #{venta_id}",
-            total_venta, metodo_pago, creado_por, fecha
+            desc_caja, monto_caja, metodo_pago, creado_por, fecha
+        )
+
+        # Registrar en venta_pagos
+        tipo_pago = 'sena' if monto_sena else 'saldo_final'
+        conn.execute(
+            """INSERT INTO venta_pagos (venta_id, monto, metodo_pago, fecha_pago, tipo, registrado_por)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (venta_id, monto_caja, metodo_pago, fecha, tipo_pago, creado_por)
         )
 
         conn.commit()
 
-        # Sincronizar stock con Tiendanube (solo productos vinculados)
+        # Sincronizar stock con Tiendanube
         for item in carrito:
             variant_row = conn.execute(
                 "SELECT variant_id, stock FROM productos WHERE id = ?", (item['id'],)

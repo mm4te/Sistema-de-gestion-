@@ -96,6 +96,20 @@
   <p><strong>Dinero recibido:</strong> ${{ venta['monto_recibido']|pesos }}</p>
   <p><strong>Vuelto:</strong> ${{ venta['vuelto']|pesos }}</p>
   {% endif %}
+  {% if venta['subtotal'] and venta['descuento_tipo'] and venta['descuento_tipo'] != 'ninguno' and venta['descuento_valor'] %}
+  <hr style="margin:12px 0; border-color:#E5E7EB;">
+  <p><strong>Subtotal:</strong> ${{ venta['subtotal']|pesos }}</p>
+  {% if venta['descuento_tipo'] == 'porcentaje' %}
+  <p style="color:#DC2626;"><strong>Descuento ({{ venta['descuento_valor']|int }}%):</strong>
+    −${{ (venta['subtotal'] - venta['total'])|pesos }}
+  </p>
+  {% else %}
+  <p style="color:#DC2626;"><strong>Descuento (monto fijo):</strong>
+    −${{ venta['descuento_valor']|pesos }}
+  </p>
+  {% endif %}
+  <p style="font-size:1.05em;font-weight:700;"><strong>Total:</strong> ${{ venta['total']|pesos }}</p>
+  {% endif %}
   {% if venta['estado'] == 'cancelada' and venta['motivo_cancelacion'] %}
   <p style="margin-top:12px; padding:10px 14px; background:#FEF2F2; border-left:3px solid #DC2626;
             border-radius:0 6px 6px 0; color:#7F1D1D;">
@@ -103,6 +117,74 @@
   </p>
   {% endif %}
 </div>
+
+{# ── Saldo pendiente banner ─────────────────────────────────────────── #}
+{% if venta['estado'] != 'cancelada' and venta['estado_pago'] and venta['estado_pago'] != 'pagado_completo' %}
+<div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:14px 18px;
+            margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+  <div>
+    <span style="font-weight:700;color:#92400E;font-size:1.05em;">
+      💰 Saldo pendiente: ${{ venta['saldo_pendiente']|pesos }}
+    </span>
+    <span style="margin-left:12px;background:#FDE68A;color:#92400E;padding:2px 10px;
+                 border-radius:20px;font-size:.82em;font-weight:700;">
+      {% if venta['estado_pago'] == 'sena' %}Seña registrada{% else %}Pago parcial{% endif %}
+    </span>
+    <p style="margin:4px 0 0;color:#78350F;font-size:.88em;">
+      Pagado hasta ahora: ${{ venta['monto_pagado']|pesos }} de ${{ venta['total']|pesos }}
+    </p>
+  </div>
+  {% if tiene_permiso('ventas', 'editar') %}
+  <button type="button" onclick="document.getElementById('modal-pagar-saldo').style.display='flex'"
+    style="background:#D97706;color:white;padding:8px 16px;border-radius:6px;border:none;
+           font-weight:600;font-size:.9em;cursor:pointer;">
+    Registrar pago de saldo
+  </button>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Tabla de pagos ─────────────────────────────────────────────────── #}
+{% if pagos_venta %}
+<h2>Pagos registrados</h2>
+<div class="table-responsive" style="margin-bottom:20px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Método</th>
+        <th>Monto</th>
+        <th>Observaciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pago in pagos_venta %}
+      <tr>
+        <td data-label="Fecha">{{ pago['fecha_pago'][:16] if pago['fecha_pago'] else '—' }}</td>
+        <td data-label="Tipo">
+          {% if pago['tipo'] == 'sena' %}
+            <span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:.82em;font-weight:700;">Seña</span>
+          {% elif pago['tipo'] == 'saldo_final' %}
+            <span style="background:#DCFCE7;color:#16A34A;padding:2px 8px;border-radius:20px;font-size:.82em;font-weight:700;">Saldo final</span>
+          {% else %}
+            <span style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:20px;font-size:.82em;font-weight:700;">Pago parcial</span>
+          {% endif %}
+        </td>
+        <td data-label="Método">
+          {% if pago['metodo_pago'] == 'efectivo' %}💵 Efectivo
+          {% elif pago['metodo_pago'] == 'transferencia' %}📲 Transferencia
+          {% elif pago['metodo_pago'] == 'tarjeta' %}💳 Tarjeta
+          {% else %}{{ pago['metodo_pago'] or '—' }}{% endif %}
+        </td>
+        <td data-label="Monto" style="font-weight:600;">${{ pago['monto']|pesos }}</td>
+        <td data-label="Observaciones">{{ pago['observaciones'] or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% if venta['factura_emitida'] %}
 <div class="card" style="margin: 0 0 20px; border-left: 4px solid #2563EB;">
@@ -201,6 +283,65 @@
 <p>No se encontraron productos en esta venta.</p>
 {% endif %}
 
+{# ── Modal: Registrar pago de saldo ────────────────────────────────── #}
+{% if venta['estado'] != 'cancelada' and venta['estado_pago'] and venta['estado_pago'] != 'pagado_completo' and tiene_permiso('ventas', 'editar') %}
+<div id="modal-pagar-saldo" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
+     z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:28px 32px; max-width:460px; width:90%;
+              box-shadow: 0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 6px; color:#D97706;">💰 Registrar pago de saldo</h3>
+    <p style="color:#6B7280; margin-bottom:18px; font-size:0.95rem;">
+      Venta <strong>#{{ venta[0] }}</strong> — Saldo pendiente:
+      <strong style="color:#D97706;">${{ venta['saldo_pendiente']|pesos }}</strong>
+    </p>
+    <form method="post" action="{{ url_for('ventas_historial.registrar_pago_saldo', venta_id=venta[0]) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:14px;">
+        <label style="font-weight:600; font-size:.9rem; display:block; margin-bottom:5px;">Monto a pagar</label>
+        <input type="number" name="monto" id="saldo-monto-input" step="0.01" min="0.01"
+               max="{{ venta['saldo_pendiente'] }}"
+               value="{{ venta['saldo_pendiente'] }}"
+               style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:1rem;"
+               oninput="updateSaldoResumen(this.value)" required>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="font-weight:600; font-size:.9rem; display:block; margin-bottom:5px;">Método de pago</label>
+        <select name="metodo_pago"
+                style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:1rem;">
+          <option value="efectivo">💵 Efectivo</option>
+          <option value="transferencia">📲 Transferencia</option>
+          <option value="tarjeta">💳 Tarjeta</option>
+        </select>
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="font-weight:600; font-size:.9rem; display:block; margin-bottom:5px;">
+          Observaciones <span style="color:#9CA3AF;">(opcional)</span>
+        </label>
+        <textarea name="observaciones" rows="2"
+          style="width:100%;padding:9px 12px;border:1px solid #E5E7EB;border-radius:8px;
+                 font-size:.95rem;resize:vertical;"></textarea>
+      </div>
+      <div id="saldo-resumen" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;
+                                     padding:10px 14px;margin-bottom:18px;font-size:.9rem;">
+        <span id="saldo-nuevo-label" style="color:#16A34A;font-weight:600;"></span>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('modal-pagar-saldo').style.display='none'"
+          style="padding:9px 20px; border-radius:7px; border:1px solid #E5E7EB;
+                 background:white; color:#374151; cursor:pointer; font-weight:500;">
+          Cancelar
+        </button>
+        <button type="submit"
+          style="padding:9px 20px; border-radius:7px; border:none;
+                 background:#D97706; color:white; cursor:pointer; font-weight:600;">
+          Registrar pago
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <!-- Modal de cancelación -->
 {% if venta['estado'] != 'cancelada' and tiene_permiso('ventas', 'cancelar') %}
 <div id="modal-cancelar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
@@ -256,6 +397,35 @@
   document.getElementById('modal-cancelar').addEventListener('click', function (e) {
     if (e.target === this) this.style.display = 'none';
   });
+</script>
+{% endif %}
+{% if venta['estado'] != 'cancelada' and venta['estado_pago'] and venta['estado_pago'] != 'pagado_completo' and tiene_permiso('ventas', 'editar') %}
+<script>
+  const saldoTotal = {{ venta['saldo_pendiente'] }};
+  const modalPagar = document.getElementById('modal-pagar-saldo');
+  if (modalPagar) {
+    modalPagar.addEventListener('click', function(e) {
+      if (e.target === this) this.style.display = 'none';
+    });
+  }
+  function updateSaldoResumen(val) {
+    const monto = parseFloat(val) || 0;
+    const nuevoSaldo = Math.max(0, saldoTotal - monto);
+    const el = document.getElementById('saldo-nuevo-label');
+    if (!el) return;
+    if (nuevoSaldo <= 0.01) {
+      el.textContent = '✅ La venta quedará totalmente pagada';
+      el.style.color = '#16A34A';
+      document.getElementById('saldo-resumen').style.background = '#F0FDF4';
+      document.getElementById('saldo-resumen').style.borderColor = '#BBF7D0';
+    } else {
+      el.textContent = 'Nuevo saldo pendiente: $' + nuevoSaldo.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+      el.style.color = '#D97706';
+      document.getElementById('saldo-resumen').style.background = '#FFFBEB';
+      document.getElementById('saldo-resumen').style.borderColor = '#FDE68A';
+    }
+  }
+  updateSaldoResumen(saldoTotal);
 </script>
 {% endif %}
 {% endblock %}

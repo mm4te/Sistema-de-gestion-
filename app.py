@@ -52,7 +52,7 @@ def create_app():
     upload_folder_imp = os.path.join(BASE_DIR, 'uploads', 'importaciones')
     os.makedirs(upload_folder_imp, exist_ok=True)
     app.config['UPLOAD_FOLDER_IMPORTACIONES'] = upload_folder_imp
-    app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+    app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
     csrf.init_app(app)
 

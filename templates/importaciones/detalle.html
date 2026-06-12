@@ -2,28 +2,34 @@
 {% block title %}{{ imp.numero }}{% endblock %}
 
 {% set estado_labels = {
-  'pendiente_pago': 'Pendiente de pago',
-  'pagado': 'Pagado',
-  'en_transito': 'En tránsito',
-  'en_aduana': 'En aduana',
-  'recibido': 'Recibido',
-  'cerrado': 'Cerrado'
+  'pendiente_pago':   'Pendiente de pago',
+  'pago_parcial':     'Pago parcial',
+  'pagado':           'Pagado',
+  'en_transito':      'En tránsito',
+  'en_aduana':        'En aduana',
+  'recibido_parcial': 'Recibido parcial',
+  'recibido':         'Recibido',
+  'cerrado':          'Cerrado'
 } %}
 {% set estado_colors = {
-  'pendiente_pago': '#92400e',
-  'pagado': '#1e40af',
-  'en_transito': '#155e75',
-  'en_aduana': '#c2410c',
-  'recibido': '#6d28d9',
-  'cerrado': '#166534'
+  'pendiente_pago':   '#92400e',
+  'pago_parcial':     '#b45309',
+  'pagado':           '#1e40af',
+  'en_transito':      '#155e75',
+  'en_aduana':        '#c2410c',
+  'recibido_parcial': '#5b21b6',
+  'recibido':         '#6d28d9',
+  'cerrado':          '#166534'
 } %}
 {% set estado_bgs = {
-  'pendiente_pago': '#fef3c7',
-  'pagado': '#dbeafe',
-  'en_transito': '#cffafe',
-  'en_aduana': '#ffedd5',
-  'recibido': '#ede9fe',
-  'cerrado': '#dcfce7'
+  'pendiente_pago':   '#fef3c7',
+  'pago_parcial':     '#fde68a',
+  'pagado':           '#dbeafe',
+  'en_transito':      '#cffafe',
+  'en_aduana':        '#ffedd5',
+  'recibido_parcial': '#f3e8ff',
+  'recibido':         '#ede9fe',
+  'cerrado':          '#dcfce7'
 } %}
 
 {% block content %}
@@ -42,15 +48,32 @@
       </span>
     </div>
   </div>
-  {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
-  <a href="{{ url_for('importaciones.editar', imp_id=imp.id) }}" class="btn-secondary">
-    <i class="bi bi-pencil"></i> Editar
-  </a>
-  {% endif %}
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('importaciones.generar_pdf_route', imp_id=imp.id) }}"
+       class="btn-secondary" title="Descargar PDF de la orden">
+      <i class="bi bi-file-earmark-pdf"></i> PDF
+    </a>
+    {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+    <a href="{{ url_for('importaciones.editar', imp_id=imp.id) }}" class="btn-secondary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    {% endif %}
+  </div>
 </div>
 
+<!-- ── Alerta ETA vencida ─────────────────────────────────────────────────── -->
+{% if eta_vencida %}
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px;
+            padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px;">
+  <i class="bi bi-exclamation-triangle-fill" style="color:#dc2626; font-size:1.2rem;"></i>
+  <span style="color:#991b1b; font-weight:600;">
+    ETA vencida: se esperaba la mercadería el {{ imp.eta }} y sigue en tránsito/aduana.
+  </span>
+</div>
+{% endif %}
+
 <!-- Info general -->
-<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px; margin-bottom:24px;">
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr)); gap:12px; margin-bottom:24px;">
   <div class="card" style="padding:14px 18px;">
     <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:4px;">PROVEEDOR</p>
     <p style="font-weight:700;">{{ imp.proveedor_nombre }}</p>
@@ -83,6 +106,90 @@
   {% endif %}
 </div>
 
+<!-- ══ SEGUIMIENTO DE ENVÍO ══════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h3 style="margin:0;"><i class="bi bi-geo-alt"></i> Seguimiento de envío</h3>
+  </div>
+
+  {% if imp.naviera or imp.numero_tracking or imp.eta or imp.contenedor %}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:10px; margin-bottom:16px;">
+    {% if imp.naviera %}
+    <div style="padding:10px 14px; background:#f8f9fa; border-radius:8px;">
+      <p style="font-size:.7em; color:var(--gray); font-weight:600; margin-bottom:3px;">NAVIERA</p>
+      <p style="font-weight:600;">{{ imp.naviera }}</p>
+    </div>
+    {% endif %}
+    {% if imp.contenedor %}
+    <div style="padding:10px 14px; background:#f8f9fa; border-radius:8px;">
+      <p style="font-size:.7em; color:var(--gray); font-weight:600; margin-bottom:3px;">CONTENEDOR</p>
+      <p style="font-weight:600;">{{ imp.contenedor }}</p>
+    </div>
+    {% endif %}
+    {% if imp.numero_tracking %}
+    <div style="padding:10px 14px; background:#f8f9fa; border-radius:8px;">
+      <p style="font-size:.7em; color:var(--gray); font-weight:600; margin-bottom:3px;">TRACKING</p>
+      <p style="font-weight:600;">
+        <a href="https://www.google.com/search?q={{ imp.numero_tracking | urlencode }}"
+           target="_blank" style="color:var(--primary); text-decoration:none;">
+          {{ imp.numero_tracking }} <i class="bi bi-box-arrow-up-right" style="font-size:.8em;"></i>
+        </a>
+      </p>
+    </div>
+    {% endif %}
+    {% if imp.eta %}
+    <div style="padding:10px 14px; background:{% if eta_vencida %}#fef2f2{% else %}#f8f9fa{% endif %}; border-radius:8px;">
+      <p style="font-size:.7em; color:var(--gray); font-weight:600; margin-bottom:3px;">ETA</p>
+      <p style="font-weight:600; color:{% if eta_vencida %}#dc2626{% else %}inherit{% endif %};">
+        {% if eta_vencida %}<i class="bi bi-exclamation-triangle-fill"></i> {% endif %}
+        {{ imp.eta }}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p style="color:var(--gray); font-size:.9em; margin-bottom:16px;">Sin datos de seguimiento aún.</p>
+  {% endif %}
+
+  {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
+  <div style="padding-top:14px; border-top:1px solid var(--border);">
+    <h4 style="margin-bottom:10px; font-size:.9em; color:var(--gray);">Actualizar seguimiento</h4>
+    <form method="post" action="{{ url_for('importaciones.actualizar_seguimiento_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:10px; align-items:end;">
+        <div>
+          <label style="display:block; font-size:.78em; font-weight:600; margin-bottom:4px;">Naviera</label>
+          <input type="text" name="naviera" value="{{ imp.naviera or '' }}" placeholder="Ej: COSCO"
+                 style="width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.78em; font-weight:600; margin-bottom:4px;">N° Tracking / BL</label>
+          <input type="text" name="numero_tracking" value="{{ imp.numero_tracking or '' }}"
+                 placeholder="Ej: COSU1234567890"
+                 style="width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.78em; font-weight:600; margin-bottom:4px;">Contenedor</label>
+          <input type="text" name="contenedor" value="{{ imp.contenedor or '' }}"
+                 placeholder="Ej: CAIU1234567"
+                 style="width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.78em; font-weight:600; margin-bottom:4px;">ETA (fecha estimada)</label>
+          <input type="date" name="eta" value="{{ imp.eta or '' }}"
+                 style="width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <button type="submit" class="btn-secondary" style="padding:7px 16px; white-space:nowrap;">
+            <i class="bi bi-save"></i> Guardar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
 <!-- ══ PRODUCTOS DEL PEDIDO ══════════════════════════════════════════════════ -->
 <div class="card" style="margin-bottom:24px;">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -96,7 +203,8 @@
       <thead>
         <tr>
           <th>Descripción</th>
-          <th style="text-align:right;">Cant.</th>
+          <th style="text-align:right;">Pedido</th>
+          <th style="text-align:right;">Recibido</th>
           <th style="text-align:right;">P. Unit. FOB</th>
           <th style="text-align:right;">Subtotal FOB</th>
           <th style="text-align:right;">Subtotal ARS</th>
@@ -105,6 +213,7 @@
       </thead>
       <tbody>
         {% for it in items %}
+        {% set recibido = (it.cantidad_recibida or 0)|float %}
         <tr>
           <td data-label="Descripción">
             {{ it.descripcion }}
@@ -114,7 +223,16 @@
             <br><span style="font-size:.75em; color:#d97706; font-weight:600;">Producto nuevo (sin SKU)</span>
             {% endif %}
           </td>
-          <td data-label="Cant." style="text-align:right;">{{ "%.0f"|format(it.cantidad) if it.cantidad == it.cantidad|int else it.cantidad }}</td>
+          <td data-label="Pedido" style="text-align:right; font-weight:600;">{{ "%.0f"|format(it.cantidad) }}</td>
+          <td data-label="Recibido" style="text-align:right;">
+            {% if recibido > 0 %}
+            <span style="color:{% if recibido >= it.cantidad %}#16a34a{% else %}#d97706{% endif %}; font-weight:600;">
+              {{ "%.0f"|format(recibido) }}
+            </span>
+            {% else %}
+            <span style="color:var(--gray);">—</span>
+            {% endif %}
+          </td>
           <td data-label="P.Unit.FOB" style="text-align:right; font-weight:600;">
             {{ imp.moneda_origen }} {{ "%.2f"|format(it.precio_unitario_fob) }}
           </td>
@@ -142,7 +260,7 @@
       </tbody>
       <tfoot>
         <tr style="background:#f8f9fa; font-weight:700;">
-          <td colspan="3" style="text-align:right; padding:8px 12px;">Total FOB:</td>
+          <td colspan="4" style="text-align:right; padding:8px 12px;">Total FOB:</td>
           <td style="text-align:right; padding:8px 12px;">{{ imp.moneda_origen }} {{ "%.2f"|format(total_fob) }}</td>
           <td style="text-align:right; padding:8px 12px;">${{ total_fob_ars | pesos }}</td>
           {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}<td></td>{% endif %}
@@ -161,7 +279,6 @@
     <form method="post" action="{{ url_for('importaciones.agregar_item_route', imp_id=imp.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <!-- Toggle tipo de item -->
       <div style="display:flex; gap:20px; margin-bottom:14px;">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:.9em; font-weight:600;">
           <input type="radio" name="tipo_item" value="existente" checked
@@ -281,11 +398,10 @@
   </div>
   {% else %}
   <p style="color:var(--gray); text-align:center; padding:12px 0; font-size:.9em;">
-    Sin gastos adicionales aún. Se agregan a medida que llegan (flete, aduana, despachante, etc.)
+    Sin gastos adicionales aún.
   </p>
   {% endif %}
 
-  <!-- Formulario agregar gasto -->
   {% if imp.estado != 'cerrado' and tiene_permiso('importaciones', 'editar') %}
   <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
     <h4 style="margin-bottom:12px; font-size:.95em; color:var(--gray);">+ Agregar gasto</h4>
@@ -339,6 +455,184 @@
   </div>
   {% endif %}
 </div>
+
+<!-- ══ PAGOS AL PROVEEDOR ════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h3 style="margin:0;"><i class="bi bi-cash-coin"></i> Pagos al proveedor</h3>
+    {% if total_pagado > 0 %}
+    <span style="font-size:.9em; color:var(--gray);">
+      Pagado: <strong>{{ imp.moneda_origen }} {{ "%.2f"|format(total_pagado) }}</strong>
+      {% if saldo_fob > 0.01 %}
+      · Saldo: <strong style="color:#dc2626;">{{ imp.moneda_origen }} {{ "%.2f"|format(saldo_fob) }}</strong>
+      {% else %}
+      · <strong style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> Saldo: 0</strong>
+      {% endif %}
+    </span>
+    {% endif %}
+  </div>
+
+  {% if pagos %}
+  <div class="table-responsive" style="margin-bottom:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th style="text-align:right;">Monto ({{ imp.moneda_origen }})</th>
+          <th style="text-align:right;">T/C</th>
+          <th style="text-align:right;">Monto ARS</th>
+          <th>Método</th>
+          <th>Registrado por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pg in pagos %}
+        <tr>
+          <td data-label="Fecha">{{ pg.fecha_pago }}</td>
+          <td data-label="Monto" style="text-align:right; font-weight:700;">
+            {{ "%.2f"|format(pg.monto) }}
+          </td>
+          <td data-label="T/C" style="text-align:right; color:var(--gray);">
+            {{ "%.2f"|format(pg.tipo_cambio) }}
+          </td>
+          <td data-label="Monto ARS" style="text-align:right; font-weight:700; color:#dc2626;">
+            ${{ pg.monto_ars | pesos }}
+          </td>
+          <td data-label="Método">{{ pg.metodo_pago or '—' }}</td>
+          <td data-label="Registrado por" style="color:var(--gray); font-size:.85em;">
+            {{ pg.usuario_nombre or '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="background:#f8f9fa; font-weight:700;">
+          <td style="padding:8px 12px;">Total pagado</td>
+          <td style="text-align:right; padding:8px 12px;">{{ "%.2f"|format(total_pagado) }}</td>
+          <td></td>
+          <td style="text-align:right; padding:8px 12px; color:#dc2626;">
+            ${{ (pagos | sum(attribute='monto_ars')) | pesos }}
+          </td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p style="color:var(--gray); font-size:.9em; margin-bottom:16px;">Sin pagos registrados aún.</p>
+  {% endif %}
+
+  {% if imp.estado in ('pendiente_pago', 'pago_parcial') and tiene_permiso('importaciones', 'editar') %}
+  <div style="padding-top:16px; border-top:1px solid var(--border);">
+    <h4 style="margin-bottom:12px; font-size:.9em; color:var(--gray);">+ Registrar pago</h4>
+    <form method="post" action="{{ url_for('importaciones.registrar_pago_route', imp_id=imp.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+            Monto a pagar ({{ imp.moneda_origen }})
+          </label>
+          <input type="number" name="monto" step="0.01" min="0.01" required
+                 placeholder="0.00"
+                 {% if saldo_fob > 0 %}value="{{ "%.2f"|format(saldo_fob) }}"{% endif %}
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+            Tipo de cambio (→ ARS)
+          </label>
+          <input type="number" name="tipo_cambio" step="0.01" min="0.01" required
+                 value="{{ imp.tipo_cambio }}"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Fecha pago</label>
+          <input type="date" name="fecha_pago"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Método</label>
+          <select name="metodo_pago"
+                  style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+            {% for m in metodos_pago %}
+            <option value="{{ m }}">{{ m|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn-primary"
+                  {% if not items %}disabled title="Agregá productos antes de registrar el pago"{% endif %}
+                  style="padding:8px 16px; white-space:nowrap;"
+                  {% if items %}onclick="return confirm('¿Confirmar pago? Se registrará un egreso en caja.')"{% endif %}>
+            <i class="bi bi-check-circle"></i> Confirmar pago
+          </button>
+        </div>
+      </div>
+      {% if items and total_fob > 0 %}
+      <div style="margin-top:10px; background:#fef3c7; padding:8px 12px; border-radius:6px; font-size:.85em; color:#92400e;">
+        Total FOB: <strong>{{ imp.moneda_origen }} {{ "%.2f"|format(total_fob) }}</strong>
+        · Pagado: <strong>{{ "%.2f"|format(total_pagado) }}</strong>
+        · Saldo: <strong>{{ "%.2f"|format(saldo_fob) }}</strong>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ RECEPCIÓN PARCIAL ══════════════════════════════════════════════════════ -->
+{% if imp.estado in ('en_transito', 'en_aduana', 'recibido_parcial') and items and tiene_permiso('importaciones', 'editar') %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="margin-bottom:16px;"><i class="bi bi-box-arrow-in-down"></i> Registrar recepción de mercadería</h3>
+  <form method="post" action="{{ url_for('importaciones.registrar_recepcion_route', imp_id=imp.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th style="text-align:right;">Pedido</th>
+            <th style="text-align:right;">Ya recibido</th>
+            <th style="text-align:right;">Pendiente</th>
+            <th style="text-align:right; width:140px;">Cantidad a recibir ahora</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+          {% set recibido = (it.cantidad_recibida or 0)|float %}
+          {% set pendiente = it.cantidad - recibido %}
+          <tr>
+            <td data-label="Producto">{{ it.descripcion }}</td>
+            <td data-label="Pedido" style="text-align:right;">{{ "%.0f"|format(it.cantidad) }}</td>
+            <td data-label="Recibido" style="text-align:right; color:#16a34a; font-weight:600;">
+              {{ "%.0f"|format(recibido) }}
+            </td>
+            <td data-label="Pendiente" style="text-align:right; color:{% if pendiente > 0 %}#d97706{% else %}#16a34a{% endif %}; font-weight:600;">
+              {{ "%.0f"|format(pendiente) }}
+            </td>
+            <td data-label="Recibir ahora" style="text-align:right;">
+              {% if pendiente > 0 %}
+              <input type="number" name="recv_{{ it.id }}" min="0" max="{{ "%.0f"|format(pendiente) }}"
+                     step="1" placeholder="0"
+                     style="width:100px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; text-align:right;">
+              {% else %}
+              <span style="color:#16a34a; font-size:.85em;"><i class="bi bi-check-circle-fill"></i> Completo</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px; text-align:right;">
+      <button type="submit" class="btn-primary"
+              onclick="return confirm('¿Registrar la recepción de mercadería indicada?')">
+        <i class="bi bi-check2-circle"></i> Registrar recepción
+      </button>
+    </div>
+  </form>
+</div>
+{% endif %}
 
 <!-- ══ RESUMEN ═══════════════════════════════════════════════════════════════ -->
 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:24px;">
@@ -416,56 +710,127 @@
 </div>
 {% endif %}
 
-<!-- ══ ACCIONES ══════════════════════════════════════════════════════════════ -->
-{% if imp.estado != 'cerrado' %}
-<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; margin-bottom:24px;">
+<!-- ══ DOCUMENTACIÓN ════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h3 style="margin:0;"><i class="bi bi-paperclip"></i> Documentación</h3>
+    <span style="font-size:.85em; color:var(--gray);">
+      {{ documentos|length }} documento{% if documentos|length != 1 %}s{% endif %}
+    </span>
+  </div>
 
-  <!-- Registrar pago al proveedor -->
-  {% if imp.estado == 'pendiente_pago' and tiene_permiso('importaciones', 'editar') %}
-  <div class="card" style="border-left:4px solid #f59e0b;">
-    <h4 style="margin-bottom:12px; color:#92400e;"><i class="bi bi-cash-coin"></i> Registrar pago al proveedor</h4>
-    <p style="font-size:.85em; color:var(--gray); margin-bottom:12px;">
-      Confirma el pago al proveedor y registra el egreso en caja.
-    </p>
-    <form method="post" action="{{ url_for('importaciones.registrar_pago_route', imp_id=imp.id) }}">
+  {% if documentos %}
+  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px;">
+    {% for doc in documentos %}
+    {% set ext = doc.nombre_archivo.rsplit('.', 1)[-1].lower() if '.' in doc.nombre_archivo else '' %}
+    <div style="display:flex; align-items:center; gap:12px; padding:10px 14px;
+                background:#f8f9fa; border-radius:8px; border:1px solid var(--border);">
+      <div style="font-size:1.6rem; flex-shrink:0; width:32px; text-align:center;">
+        {% if ext == 'pdf' %}
+          <i class="bi bi-file-earmark-pdf" style="color:#dc2626;"></i>
+        {% elif ext in ('jpg', 'jpeg', 'png') %}
+          <i class="bi bi-file-earmark-image" style="color:#16a34a;"></i>
+        {% elif ext == 'xlsx' %}
+          <i class="bi bi-file-earmark-excel" style="color:#15803d;"></i>
+        {% elif ext == 'docx' %}
+          <i class="bi bi-file-earmark-word" style="color:#1d4ed8;"></i>
+        {% else %}
+          <i class="bi bi-file-earmark" style="color:var(--gray);"></i>
+        {% endif %}
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-weight:600; font-size:.95em;">{{ doc.nombre_archivo }}</span>
+          <span style="font-size:.75em; background:#e0e7ff; color:#3730a3;
+                       padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap;">
+            {% for val, lbl in tipos_documento %}{% if val == doc.tipo_documento %}{{ lbl }}{% endif %}{% endfor %}
+          </span>
+        </div>
+        <div style="font-size:.78em; color:var(--gray); margin-top:3px;">
+          {{ doc.fecha_subida[:16] }}
+          {% if doc.usuario_nombre %} · {{ doc.usuario_nombre }}{% endif %}
+          {% if doc.descripcion %} · <em>{{ doc.descripcion }}</em>{% endif %}
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        {% if ext in ('pdf', 'jpg', 'jpeg', 'png') %}
+        <a href="{{ url_for('importaciones.ver_documento', doc_id=doc.id, inline=1) }}"
+           target="_blank" class="btn-secondary"
+           style="padding:4px 10px; font-size:.8em;">
+          <i class="bi bi-eye"></i> Ver
+        </a>
+        {% endif %}
+        <a href="{{ url_for('importaciones.ver_documento', doc_id=doc.id) }}"
+           class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+          <i class="bi bi-download"></i>
+        </a>
+        {% if tiene_permiso('importaciones', 'editar') %}
+        <form method="post"
+              action="{{ url_for('importaciones.eliminar_documento_route', doc_id=doc.id) }}"
+              style="display:inline;"
+              onsubmit="return confirm('¿Eliminar el documento {{ doc.nombre_archivo }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  style="background:var(--danger);color:white;border:none;
+                         padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.8em;">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--gray); text-align:center; padding:12px 0; font-size:.9em;">
+    Sin documentos adjuntos. Subí la proforma, factura comercial, packing list, BL, etc.
+  </p>
+  {% endif %}
+
+  {% if tiene_permiso('importaciones', 'editar') %}
+  <div style="padding-top:16px; border-top:1px solid var(--border);">
+    <h4 style="margin-bottom:12px; font-size:.95em; color:var(--gray);">+ Subir documento</h4>
+    <form method="post" enctype="multipart/form-data"
+          action="{{ url_for('importaciones.subir_documento', imp_id=imp.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="margin-bottom:10px;">
-        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
-          Tipo de cambio real ({{ imp.moneda_origen }} → ARS)
-        </label>
-        <input type="number" name="tipo_cambio" step="0.01" min="0.01" required
-               value="{{ imp.tipo_cambio }}"
-               style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Tipo de documento</label>
+          <select name="tipo_documento" required
+                  style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
+            {% for val, lbl in tipos_documento %}
+            <option value="{{ val }}">{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Descripción (opcional)</label>
+          <input type="text" name="descripcion" placeholder="Ej: Factura N° 2024-001"
+                 style="width:100%; padding:8px 10px; border:1px solid var(--border);
+                        border-radius:6px; box-sizing:border-box;">
+        </div>
       </div>
-      <div style="margin-bottom:10px;">
-        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Fecha de pago</label>
-        <input type="date" name="fecha_pago"
-               style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+      <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:220px;">
+          <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">
+            Archivo <span style="font-weight:400; color:var(--gray);">(PDF, JPG, PNG, XLSX, DOCX · máx. 10 MB)</span>
+          </label>
+          <input type="file" name="archivo" required
+                 accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+                 style="width:100%; font-size:.85em; padding:4px 0;">
+        </div>
+        <button type="submit" class="btn-primary" style="padding:8px 20px; white-space:nowrap;">
+          <i class="bi bi-cloud-upload"></i> Subir
+        </button>
       </div>
-      <div style="margin-bottom:14px;">
-        <label style="display:block; font-size:.8em; font-weight:600; margin-bottom:4px;">Método de pago</label>
-        <select name="metodo_pago"
-                style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;">
-          {% for m in metodos_pago %}
-          <option value="{{ m }}">{{ m|capitalize }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      {% if items %}
-      <div style="background:#fef3c7; padding:10px; border-radius:6px; font-size:.85em; margin-bottom:12px; color:#92400e;">
-        <strong>Total a debitar de caja:</strong>
-        ${{ (total_fob * imp.tipo_cambio) | pesos }} (al tipo de cambio actual)
-      </div>
-      {% endif %}
-      <button type="submit" class="btn-primary"
-              {% if not items %}disabled title="Agregá productos antes de registrar el pago"{% endif %}
-              style="width:100%;"
-              {% if items %}onclick="return confirm('¿Confirmar pago al proveedor? Se registrará un egreso en caja.')"{% endif %}>
-        <i class="bi bi-check-circle"></i> Confirmar pago
-      </button>
     </form>
   </div>
   {% endif %}
+</div>
+
+<!-- ══ ACCIONES ══════════════════════════════════════════════════════════════ -->
+{% if imp.estado != 'cerrado' %}
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; margin-bottom:24px;">
 
   <!-- Cambiar estado -->
   {% if tiene_permiso('importaciones', 'editar') %}
@@ -502,7 +867,7 @@
   <div class="card" style="border-left:4px solid #16a34a;">
     <h4 style="margin-bottom:12px; color:#166534;"><i class="bi bi-box-arrow-in-down"></i> Cerrar importación</h4>
     <p style="font-size:.85em; color:var(--gray); margin-bottom:12px;">
-      Calcula el costo final de cada producto y lo aplica al inventario. Esta acción no es reversible.
+      Calcula el costo final y lo aplica al inventario. No reversible.
     </p>
     {% if costos_preview %}
     <ul style="font-size:.82em; color:var(--gray); margin-bottom:14px; padding-left:16px;">
@@ -550,10 +915,9 @@ function toggleTipoItem(tipo) {
 
 function toggleFechaLlegada(estado) {
   var div = document.getElementById('div-fecha-llegada');
-  if (div) div.style.display = (estado === 'recibido') ? '' : 'none';
+  if (div) div.style.display = (estado === 'recibido' || estado === 'recibido_parcial') ? '' : 'none';
 }
 
-// Mostrar fecha llegada si el select ya tiene 'recibido' seleccionado
 (function() {
   var sel = document.getElementById('sel-estado');
   if (sel) toggleFechaLlegada(sel.value);

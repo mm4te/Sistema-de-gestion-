@@ -45,8 +45,11 @@
       </a>
       {% if tiene_permiso('importaciones', 'ver') %}
       <div class="nav-section-label">Compras</div>
-      <a href="{{ url_for('importaciones.lista') }}" {% if request.blueprint == 'importaciones' %}class="active"{% endif %}>
+      <a href="{{ url_for('importaciones.lista') }}" {% if request.blueprint == 'importaciones' and request.endpoint != 'importaciones.dashboard' %}class="active"{% endif %}>
         <i class="bi bi-globe"></i><span>Importaciones</span>
+      </a>
+      <a href="{{ url_for('importaciones.dashboard') }}" {% if request.endpoint == 'importaciones.dashboard' %}class="active"{% endif %}>
+        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
       </a>
       {% endif %}
 

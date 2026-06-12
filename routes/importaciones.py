@@ -9,24 +9,34 @@ from werkzeug.utils import secure_filename
 from models import get_conn
 from routes import login_required, require_permiso
 from services.importaciones_service import (
-    ESTADOS_IMPORTACION, METODOS_PAGO, MONEDAS, TIPOS_GASTO_IMP,
-    actualizar_importacion, actualizar_proveedor,
-    agregar_gasto_importacion, agregar_item,
+    ESTADOS_IMPORTACION, METODOS_PAGO, MONEDAS, TIPOS_DOCUMENTO, TIPOS_GASTO_IMP,
+    actualizar_importacion, actualizar_proveedor, actualizar_seguimiento,
+    agregar_documento, agregar_gasto_importacion, agregar_item,
     calcular_costos, cambiar_estado, cerrar_importacion,
     crear_importacion, crear_proveedor,
-    eliminar_gasto_importacion, eliminar_item, eliminar_proveedor,
-    get_importacion, get_importacion_gastos, get_importacion_items,
+    eliminar_documento, eliminar_gasto_importacion, eliminar_item, eliminar_proveedor,
+    generar_pdf_importacion, get_dashboard_data,
+    get_importacion, get_importacion_documentos, get_importacion_gastos,
+    get_importacion_items, get_importacion_pagos,
     get_proveedor, listar_importaciones, listar_proveedores,
-    registrar_pago,
+    registrar_pago_parcial, registrar_recepcion,
 )
 
 importaciones_bp = Blueprint('importaciones', __name__)
 
+# Comprobantes de gastos (imágenes/pdf solamente)
 EXTENSIONES_PERMITIDAS = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
+# Documentos adjuntos a la importación (más tipos)
+EXTENSIONES_DOCUMENTOS = {'pdf', 'jpg', 'jpeg', 'png', 'xlsx', 'docx'}
+MAX_DOC_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _allowed(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in EXTENSIONES_PERMITIDAS
+
+
+def _allowed_doc(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in EXTENSIONES_DOCUMENTOS
 
 
 def _guardar_comprobante(file):
@@ -40,6 +50,23 @@ def _guardar_comprobante(file):
     ruta    = os.path.join(carpeta, nombre_guardado)
     file.save(ruta)
     return secure_filename(file.filename), ruta
+
+
+def _guardar_documento(file, imp_id):
+    """Guarda documento en uploads/importaciones/<imp_id>/ con prefijo uuid."""
+    if not file or not file.filename:
+        return None, None
+    if not _allowed_doc(file.filename):
+        return None, None
+    nombre_original = secure_filename(file.filename)
+    prefijo = uuid.uuid4().hex[:8]
+    nombre_guardado = f"{prefijo}_{nombre_original}"
+    base = current_app.config.get('UPLOAD_FOLDER_IMPORTACIONES', '')
+    carpeta = os.path.join(base, str(imp_id))
+    os.makedirs(carpeta, exist_ok=True)
+    ruta = os.path.join(carpeta, nombre_guardado)
+    file.save(ruta)
+    return nombre_original, ruta
 
 
 # ── Lista ─────────────────────────────────────────────────────────────────────
@@ -166,8 +193,11 @@ def detalle(imp_id):
         flash("Importación no encontrada", "error")
         return redirect(url_for('importaciones.lista'))
 
-    items  = get_importacion_items(imp_id)
-    gastos = get_importacion_gastos(imp_id)
+    from datetime import date as _date
+    items      = get_importacion_items(imp_id)
+    gastos     = get_importacion_gastos(imp_id)
+    documentos = get_importacion_documentos(imp_id)
+    pagos      = get_importacion_pagos(imp_id)
 
     total_fob     = sum(float(it['cantidad']) * float(it['precio_unitario_fob']) for it in items)
     total_fob_ars = total_fob * float(imp['tipo_cambio'])
@@ -175,6 +205,9 @@ def detalle(imp_id):
     total_final   = total_fob_ars + total_gastos
     unidades      = sum(float(it['cantidad']) for it in items)
     costo_prom    = total_final / unidades if unidades > 0 else 0
+
+    total_pagado  = sum(float(p['monto']) for p in pagos)
+    saldo_fob     = total_fob - total_pagado
 
     costos_preview = calcular_costos(imp_id) if items else []
 
@@ -184,16 +217,26 @@ def detalle(imp_id):
     ).fetchall()
     conn.close()
 
+    hoy = _date.today().isoformat()
+    eta_vencida = (
+        imp['eta'] and imp['eta'] < hoy
+        and imp['estado'] in ('en_transito', 'en_aduana')
+    )
+
     return render_template('importaciones/detalle.html',
                            imp=imp, items=items, gastos=gastos,
+                           documentos=documentos, pagos=pagos,
                            total_fob=total_fob, total_fob_ars=total_fob_ars,
                            total_gastos=total_gastos, total_final=total_final,
                            costo_prom=costo_prom, unidades=unidades,
+                           total_pagado=total_pagado, saldo_fob=saldo_fob,
                            costos_preview=costos_preview,
                            productos=productos,
                            tipos_gasto=TIPOS_GASTO_IMP,
+                           tipos_documento=TIPOS_DOCUMENTO,
                            metodos_pago=METODOS_PAGO,
-                           estados=ESTADOS_IMPORTACION)
+                           estados=ESTADOS_IMPORTACION,
+                           eta_vencida=eta_vencida)
 
 
 # ── Agregar item ──────────────────────────────────────────────────────────────
@@ -309,26 +352,72 @@ def eliminar_gasto_route(imp_id, gasto_id):
     return redirect(url_for('importaciones.detalle', imp_id=imp_id))
 
 
-# ── Registrar pago al proveedor ───────────────────────────────────────────────
+# ── Registrar pago parcial al proveedor ──────────────────────────────────────
 
-@importaciones_bp.route('/importaciones/<int:imp_id>/registrar-pago', methods=['POST'])
+@importaciones_bp.route('/importaciones/<int:imp_id>/pagos/registrar', methods=['POST'])
 @login_required
 @require_permiso('importaciones', 'editar')
 def registrar_pago_route(imp_id):
+    monto_str   = request.form.get('monto', '').replace(',', '.').strip()
     tc_str      = request.form.get('tipo_cambio', '').replace(',', '.').strip()
     fecha_pago  = request.form.get('fecha_pago', '').strip() or None
     metodo_pago = request.form.get('metodo_pago', '').strip() or None
 
     try:
+        monto       = float(monto_str)
         tipo_cambio = float(tc_str)
     except ValueError:
-        flash("Tipo de cambio inválido", "error")
+        flash("Monto o tipo de cambio inválido", "error")
         return redirect(url_for('importaciones.detalle', imp_id=imp_id))
 
-    ok, err = registrar_pago(imp_id, tipo_cambio, fecha_pago, metodo_pago,
-                              usuario_id=session.get('user_id'))
+    ok, err = registrar_pago_parcial(imp_id, monto, tipo_cambio, fecha_pago,
+                                     metodo_pago, usuario_id=session.get('user_id'))
     if ok:
         flash("Pago registrado y debitado de caja", "success")
+    else:
+        flash(f"Error: {err}", "error")
+    return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+
+# ── Registrar recepción parcial ───────────────────────────────────────────────
+
+@importaciones_bp.route('/importaciones/<int:imp_id>/recepcion', methods=['POST'])
+@login_required
+@require_permiso('importaciones', 'editar')
+def registrar_recepcion_route(imp_id):
+    recepciones = {}
+    for key, val in request.form.items():
+        if key.startswith('recv_'):
+            item_id = key[5:]
+            try:
+                cant = float(val.replace(',', '.').strip())
+                if cant > 0:
+                    recepciones[item_id] = cant
+            except (ValueError, AttributeError):
+                pass
+
+    ok, err = registrar_recepcion(imp_id, recepciones, usuario_id=session.get('user_id'))
+    if ok:
+        flash("Recepción registrada", "success")
+    else:
+        flash(f"Error: {err}", "error")
+    return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+
+# ── Actualizar seguimiento de envío ───────────────────────────────────────────
+
+@importaciones_bp.route('/importaciones/<int:imp_id>/seguimiento', methods=['POST'])
+@login_required
+@require_permiso('importaciones', 'editar')
+def actualizar_seguimiento_route(imp_id):
+    naviera         = request.form.get('naviera', '').strip() or None
+    numero_tracking = request.form.get('numero_tracking', '').strip() or None
+    eta             = request.form.get('eta', '').strip() or None
+    contenedor      = request.form.get('contenedor', '').strip() or None
+
+    ok, err = actualizar_seguimiento(imp_id, naviera, numero_tracking, eta, contenedor)
+    if ok:
+        flash("Datos de seguimiento actualizados", "success")
     else:
         flash(f"Error: {err}", "error")
     return redirect(url_for('importaciones.detalle', imp_id=imp_id))
@@ -363,6 +452,130 @@ def cerrar(imp_id):
     else:
         flash(f"Error: {err}", "error")
     return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+@importaciones_bp.route('/importaciones/dashboard')
+@login_required
+@require_permiso('importaciones', 'ver')
+def dashboard():
+    data = get_dashboard_data()
+    return render_template('importaciones/dashboard.html',
+                           estados=ESTADOS_IMPORTACION,
+                           **data)
+
+
+# ── PDF de la orden ───────────────────────────────────────────────────────────
+
+@importaciones_bp.route('/importaciones/<int:imp_id>/pdf')
+@login_required
+@require_permiso('importaciones', 'ver')
+def generar_pdf_route(imp_id):
+    imp = get_importacion(imp_id)
+    if not imp:
+        flash("Importación no encontrada", "error")
+        return redirect(url_for('importaciones.lista'))
+    buf = generar_pdf_importacion(imp_id)
+    if not buf:
+        flash("Error al generar el PDF", "error")
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+    return send_file(buf,
+                     as_attachment=True,
+                     download_name=f"importacion_{imp['numero']}.pdf",
+                     mimetype='application/pdf')
+
+
+# ── Documentos adjuntos ───────────────────────────────────────────────────────
+
+@importaciones_bp.route('/importaciones/<int:imp_id>/documentos/subir', methods=['POST'])
+@login_required
+@require_permiso('importaciones', 'editar')
+def subir_documento(imp_id):
+    imp = get_importacion(imp_id)
+    if not imp:
+        flash("Importación no encontrada", "error")
+        return redirect(url_for('importaciones.lista'))
+
+    tipo_documento = request.form.get('tipo_documento', '').strip()
+    descripcion    = request.form.get('descripcion', '').strip() or None
+    file           = request.files.get('archivo')
+
+    if not file or not file.filename:
+        flash("Seleccioná un archivo", "error")
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+    if not _allowed_doc(file.filename):
+        flash("Tipo no permitido. Usá PDF, JPG, PNG, XLSX o DOCX.", "error")
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+    # Verificar tamaño antes de guardar
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_DOC_SIZE:
+        flash("El archivo supera el límite de 10 MB", "error")
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+    nombre_archivo, ruta_archivo = _guardar_documento(file, imp_id)
+    if not nombre_archivo:
+        flash("Error al guardar el archivo", "error")
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+    ok, err = agregar_documento(
+        imp_id, tipo_documento, nombre_archivo, ruta_archivo,
+        descripcion, usuario_id=session.get('user_id')
+    )
+    if ok:
+        flash("Documento subido correctamente", "success")
+    else:
+        if os.path.isfile(ruta_archivo):
+            os.remove(ruta_archivo)
+        flash(f"Error: {err}", "error")
+    return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+
+
+@importaciones_bp.route('/importaciones/documentos/<int:doc_id>')
+@login_required
+@require_permiso('importaciones', 'ver')
+def ver_documento(doc_id):
+    conn = get_conn()
+    doc = conn.execute(
+        "SELECT * FROM importacion_documentos WHERE id = ?", (doc_id,)
+    ).fetchone()
+    conn.close()
+    if not doc or not os.path.isfile(doc['ruta_archivo']):
+        abort(404)
+    inline = request.args.get('inline', '0') == '1'
+    ext = doc['nombre_archivo'].rsplit('.', 1)[-1].lower() if '.' in doc['nombre_archivo'] else ''
+    as_attachment = not (inline and ext in {'pdf', 'jpg', 'jpeg', 'png'})
+    return send_file(doc['ruta_archivo'],
+                     as_attachment=as_attachment,
+                     download_name=doc['nombre_archivo'])
+
+
+@importaciones_bp.route('/importaciones/documentos/<int:doc_id>/eliminar', methods=['POST'])
+@login_required
+@require_permiso('importaciones', 'editar')
+def eliminar_documento_route(doc_id):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT importacion_id FROM importacion_documentos WHERE id = ?", (doc_id,)
+    ).fetchone()
+    conn.close()
+    imp_id = row['importacion_id'] if row else None
+
+    ok, err, ruta = eliminar_documento(doc_id, usuario_id=session.get('user_id'))
+    if ok:
+        if ruta and os.path.isfile(ruta):
+            os.remove(ruta)
+        flash("Documento eliminado", "success")
+    else:
+        flash(f"Error: {err}", "error")
+
+    if imp_id:
+        return redirect(url_for('importaciones.detalle', imp_id=imp_id))
+    return redirect(url_for('importaciones.lista'))
 
 
 # ── Descargar comprobante ─────────────────────────────────────────────────────

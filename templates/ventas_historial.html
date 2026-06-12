@@ -4,12 +4,12 @@
 {% block content %}
 <h1>📈 Historial de Ventas ({{ total }})</h1>
 
-<!-- Filtro por origen -->
-<div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;">
+<!-- Filtros -->
+<div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
   <a href="{{ url_for('ventas_historial.ventas_historial') }}"
      style="padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em;
-            background: {{ '#4361ee' if origen == '' else '#e9ecef' }};
-            color: {{ 'white' if origen == '' else '#333' }};">
+            background: {{ '#4361ee' if (origen == '' and saldo_pendiente == '') else '#e9ecef' }};
+            color: {{ 'white' if (origen == '' and saldo_pendiente == '') else '#333' }};">
     Todas
   </a>
   <a href="{{ url_for('ventas_historial.ventas_historial', origen='tiendanube') }}"
@@ -28,6 +28,13 @@
             background: {{ '#4361ee' if origen == 'negocio' else '#e9ecef' }};
             color: {{ 'white' if origen == 'negocio' else '#333' }};">
     🏪 Negocio
+  </a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', saldo_pendiente='1') }}"
+     style="padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9em;
+            background: {{ '#D97706' if saldo_pendiente == '1' else '#FEF3C7' }};
+            color: {{ 'white' if saldo_pendiente == '1' else '#92400E' }};
+            border: 1px solid #FCD34D;">
+    💰 Con saldo pendiente
   </a>
 </div>
 
@@ -55,6 +62,7 @@
         <th>Cliente</th>
         <th>Total</th>
         <th>Estado</th>
+        <th>Pago</th>
         <th>Factura</th>
         <th>Acciones</th>
       </tr>
@@ -74,6 +82,19 @@
           <span style="background:#FEE2E2;color:#DC2626;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;">Cancelada</span>
           {% else %}
           <span style="background:#DCFCE7;color:#16A34A;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;">Activa</span>
+          {% endif %}
+        </td>
+        <td data-label="Pago">
+          {% if cancelada %}
+          <span style="color:#9CA3AF;font-size:.82rem;">—</span>
+          {% elif v['estado_pago'] == 'pagado_completo' or not v['estado_pago'] %}
+          <span style="background:#DCFCE7;color:#16A34A;padding:2px 8px;border-radius:20px;font-size:.8rem;font-weight:600;">Pagado</span>
+          {% elif v['estado_pago'] == 'sena' %}
+          <span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:.8rem;font-weight:600;"
+                title="Saldo: ${{ v['saldo_pendiente']|pesos }}">Seña</span>
+          {% else %}
+          <span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:.8rem;font-weight:600;"
+                title="Saldo: ${{ v['saldo_pendiente']|pesos }}">Parcial</span>
           {% endif %}
         </td>
         <td data-label="Factura">
@@ -112,17 +133,17 @@
 {% if not search_id and total_pages > 1 %}
 <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
   {% if page > 1 %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1, origen=origen) }}" class="pagination-link">« Anterior</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=page-1, origen=origen, saldo_pendiente=saldo_pendiente) }}" class="pagination-link">« Anterior</a>
   {% endif %}
   {% for p in range(1, total_pages+1) %}
   {% if p == page %}
   <span style="background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold;">{{ p }}</span>
   {% else %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=p, origen=origen) }}" class="pagination-link">{{ p }}</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=p, origen=origen, saldo_pendiente=saldo_pendiente) }}" class="pagination-link">{{ p }}</a>
   {% endif %}
   {% endfor %}
   {% if page < total_pages %}
-  <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1, origen=origen) }}" class="pagination-link">Siguiente »</a>
+  <a href="{{ url_for('ventas_historial.ventas_historial', page=page+1, origen=origen, saldo_pendiente=saldo_pendiente) }}" class="pagination-link">Siguiente »</a>
   {% endif %}
 </div>
 {% endif %}

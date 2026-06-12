@@ -17,17 +17,19 @@ DB_PATH  = os.path.join(BASE_DIR, 'negocio.db')
 @ventas_historial_bp.route('/ventas_historial')
 @login_required
 def ventas_historial():
-    page      = request.args.get('page', 1, type=int)
-    search_id = request.args.get('id', '').strip()
-    origen    = request.args.get('origen', '').strip()
-    per_page  = 20
+    page             = request.args.get('page', 1, type=int)
+    search_id        = request.args.get('id', '').strip()
+    origen           = request.args.get('origen', '').strip()
+    saldo_pendiente  = request.args.get('saldo_pendiente', '').strip()
+    per_page         = 20
     conn = get_conn()
     if search_id:
         try:
             venta_id = int(search_id)
             ventas = conn.execute("""
                 SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id,
-                       v.estado, v.factura_emitida, v.nota_credito_emitida
+                       v.estado, v.factura_emitida, v.nota_credito_emitida,
+                       v.estado_pago, v.saldo_pendiente
                 FROM ventas v JOIN clientes c ON v.cliente_id = c.id
                 WHERE v.id = ? ORDER BY v.fecha DESC
             """, (venta_id,)).fetchall()
@@ -38,28 +40,33 @@ def ventas_historial():
             flash("❌ El ID debe ser un número entero.", "error")
             ventas, total, total_pages = [], 0, 0
     else:
+        conditions = []
         if origen == 'tiendanube':
-            where_origen = "WHERE v.metodo_pago = 'Tienda Nube'"
+            conditions.append("v.metodo_pago = 'Tienda Nube'")
         elif origen == 'negocio':
-            where_origen = "WHERE v.metodo_pago != 'Tienda Nube'"
-        else:
-            where_origen = ""
+            conditions.append("v.metodo_pago != 'Tienda Nube'")
+        if saldo_pendiente == '1':
+            conditions.append("v.estado_pago != 'pagado_completo'")
+            conditions.append("v.estado != 'cancelada'")
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         total  = conn.execute(
-            f"SELECT COUNT(*) FROM ventas v {where_origen}"
+            f"SELECT COUNT(*) FROM ventas v JOIN clientes c ON v.cliente_id = c.id {where_clause}"
         ).fetchone()[0]
         offset = (page - 1) * per_page
         ventas = conn.execute(f"""
             SELECT v.id, v.fecha, c.nombre, v.total, v.metodo_pago, v.cuotas, v.order_id,
-                   v.estado, v.factura_emitida, v.nota_credito_emitida
+                   v.estado, v.factura_emitida, v.nota_credito_emitida,
+                   v.estado_pago, v.saldo_pendiente
             FROM ventas v JOIN clientes c ON v.cliente_id = c.id
-            {where_origen}
+            {where_clause}
             ORDER BY v.fecha DESC LIMIT ? OFFSET ?
         """, (per_page, offset)).fetchall()
         total_pages = (total + per_page - 1) // per_page
     conn.close()
     return render_template('ventas_historial.html', ventas=ventas, page=page,
                            total_pages=total_pages, total=total,
-                           search_id=search_id, origen=origen)
+                           search_id=search_id, origen=origen,
+                           saldo_pendiente=saldo_pendiente)
 
 @ventas_historial_bp.route('/venta/<int:venta_id>')
 @login_required
@@ -73,7 +80,9 @@ def detalle_venta(venta_id):
                v.factura_cae, v.factura_cae_vto, v.factura_pdf_path, v.factura_fecha,
                v.nota_credito_emitida, v.nota_credito_tipo, v.nota_credito_numero,
                v.nota_credito_cae, v.nota_credito_cae_vto, v.nota_credito_pdf_path,
-               v.nota_credito_fecha, v.nota_credito_motivo
+               v.nota_credito_fecha, v.nota_credito_motivo,
+               v.subtotal, v.descuento_tipo, v.descuento_valor,
+               v.estado_pago, v.monto_pagado, v.saldo_pendiente
         FROM ventas v JOIN clientes c ON v.cliente_id = c.id
         WHERE v.id = ?
     """, (venta_id,)).fetchone()
@@ -90,9 +99,87 @@ def detalle_venta(venta_id):
         "SELECT id, numero, estado FROM remitos WHERE venta_id = ? LIMIT 1",
         (venta_id,),
     ).fetchone()
+    pagos_venta = conn.execute(
+        "SELECT * FROM venta_pagos WHERE venta_id = ? ORDER BY id ASC",
+        (venta_id,),
+    ).fetchall()
     conn.close()
     return render_template('detalle_venta.html', venta=venta, productos=productos,
-                           remito_venta=remito_venta)
+                           remito_venta=remito_venta, pagos_venta=pagos_venta)
+
+
+@ventas_historial_bp.route('/venta/<int:venta_id>/pagar', methods=['POST'])
+@login_required
+def registrar_pago_saldo(venta_id):
+    conn = get_conn()
+    try:
+        venta = conn.execute(
+            "SELECT id, total, estado, estado_pago, monto_pagado, saldo_pendiente, metodo_pago"
+            " FROM ventas WHERE id = ?", (venta_id,)
+        ).fetchone()
+        if not venta:
+            flash("❌ Venta no encontrada.", "error")
+            return redirect(url_for('ventas_historial.ventas_historial'))
+        if venta['estado'] == 'cancelada':
+            flash("❌ No se puede registrar pago en una venta cancelada.", "error")
+            return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
+        if venta['estado_pago'] == 'pagado_completo':
+            flash("⚠️ Esta venta ya está pagada en su totalidad.", "warning")
+            return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
+
+        try:
+            monto = float(request.form.get('monto', '0').replace(',', '.'))
+        except ValueError:
+            flash("❌ Monto inválido.", "error")
+            return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
+
+        metodo_pago  = request.form.get('metodo_pago', 'efectivo')
+        observaciones = request.form.get('observaciones', '').strip() or None
+
+        saldo_actual = float(venta['saldo_pendiente'] or 0)
+        if monto <= 0:
+            flash("❌ El monto debe ser mayor a cero.", "error")
+            return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
+        if monto > saldo_actual + 0.01:
+            flash(f"❌ El monto (${monto:.2f}) supera el saldo pendiente (${saldo_actual:.2f}).", "error")
+            return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
+
+        nuevo_monto_pagado    = float(venta['monto_pagado'] or 0) + monto
+        nuevo_saldo_pendiente = max(0, float(venta['total']) - nuevo_monto_pagado)
+        nuevo_estado_pago     = 'pagado_completo' if nuevo_saldo_pendiente <= 0.01 else 'sena'
+        tipo_pago             = 'saldo_final' if nuevo_estado_pago == 'pagado_completo' else 'pago_parcial'
+        fecha                 = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        conn.execute(
+            "UPDATE ventas SET monto_pagado=?, saldo_pendiente=?, estado_pago=? WHERE id=?",
+            (nuevo_monto_pagado, nuevo_saldo_pendiente, nuevo_estado_pago, venta_id)
+        )
+        conn.execute(
+            """INSERT INTO venta_pagos (venta_id, monto, metodo_pago, fecha_pago, tipo, registrado_por, observaciones)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (venta_id, monto, metodo_pago, fecha, tipo_pago, g.user_id, observaciones)
+        )
+        from services.caja_service import registrar_movimiento_en_conn
+        desc = f"Venta #{venta_id} - pago saldo"
+        if tipo_pago == 'saldo_final':
+            desc = f"Venta #{venta_id} - saldo final"
+        registrar_movimiento_en_conn(
+            conn, 'ingreso', 'venta', venta_id, desc, monto, metodo_pago, g.user_id, fecha
+        )
+        conn.commit()
+
+        if nuevo_estado_pago == 'pagado_completo':
+            flash("✅ Pago registrado. Venta pagada en su totalidad.", "success")
+        else:
+            flash(f"✅ Pago de ${monto:,.2f} registrado. Saldo pendiente: ${nuevo_saldo_pendiente:,.2f}", "success")
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Error al registrar pago saldo venta #%s", venta_id)
+        flash(f"❌ Error: {e}", "error")
+    finally:
+        conn.close()
+
+    return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
 
 
 @ventas_historial_bp.route('/venta/<int:venta_id>/cancelar', methods=['POST'])
@@ -129,6 +216,10 @@ def cancelar_venta(venta_id):
         cliente = conn.execute(
             "SELECT * FROM clientes WHERE id = ?", (venta['cliente_id'],)
         ).fetchone()
+        pagos_venta_cancelar = conn.execute(
+            "SELECT monto, metodo_pago FROM venta_pagos WHERE venta_id = ? ORDER BY id ASC",
+            (venta_id,),
+        ).fetchall()
     finally:
         conn.close()
 
@@ -187,11 +278,19 @@ def cancelar_venta(venta_id):
             )
 
         from services.caja_service import registrar_movimiento_en_conn
-        registrar_movimiento_en_conn(
-            conn, 'egreso', 'cancelacion', venta_id,
-            f"Cancelación Venta #{venta_id}",
-            venta['total'], venta['metodo_pago'], g.user_id,
-        )
+        if pagos_venta_cancelar:
+            for pago in pagos_venta_cancelar:
+                registrar_movimiento_en_conn(
+                    conn, 'egreso', 'cancelacion', venta_id,
+                    f"Cancelación Venta #{venta_id}",
+                    pago['monto'], pago['metodo_pago'], g.user_id,
+                )
+        else:
+            registrar_movimiento_en_conn(
+                conn, 'egreso', 'cancelacion', venta_id,
+                f"Cancelación Venta #{venta_id}",
+                venta['total'], venta['metodo_pago'], g.user_id,
+            )
         conn.commit()
 
         detalle_audit = (

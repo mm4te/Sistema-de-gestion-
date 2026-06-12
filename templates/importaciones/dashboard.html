@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Importaciones{% endblock %}
+
+{% set estado_labels = {
+  'pendiente_pago':   'Pendiente de pago',
+  'pago_parcial':     'Pago parcial',
+  'pagado':           'Pagado',
+  'en_transito':      'En tránsito',
+  'en_aduana':        'En aduana',
+  'recibido_parcial': 'Recibido parcial',
+  'recibido':         'Recibido',
+  'cerrado':          'Cerrado'
+} %}
+{% set estado_colors = {
+  'pendiente_pago':   '#92400e',
+  'pago_parcial':     '#b45309',
+  'pagado':           '#1e40af',
+  'en_transito':      '#155e75',
+  'en_aduana':        '#c2410c',
+  'recibido_parcial': '#5b21b6',
+  'recibido':         '#6d28d9',
+  'cerrado':          '#166534'
+} %}
+{% set estado_bgs = {
+  'pendiente_pago':   '#fef3c7',
+  'pago_parcial':     '#fde68a',
+  'pagado':           '#dbeafe',
+  'en_transito':      '#cffafe',
+  'en_aduana':        '#ffedd5',
+  'recibido_parcial': '#f3e8ff',
+  'recibido':         '#ede9fe',
+  'cerrado':          '#dcfce7'
+} %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <h2 style="margin:0;"><i class="bi bi-speedometer2" style="color:var(--primary);"></i> Dashboard de Importaciones</h2>
+  <a href="{{ url_for('importaciones.lista') }}" class="btn-secondary">
+    <i class="bi bi-list-ul"></i> Ver todas
+  </a>
+</div>
+
+<!-- ── Alertas ETA vencida ────────────────────────────────────────────────── -->
+{% if eta_vencidas %}
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px;
+            padding:14px 18px; margin-bottom:20px;">
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+    <i class="bi bi-exclamation-triangle-fill" style="color:#dc2626; font-size:1.2rem;"></i>
+    <strong style="color:#991b1b;">{{ eta_vencidas|length }} importación{% if eta_vencidas|length != 1 %}es{% endif %} con ETA vencida</strong>
+  </div>
+  {% for imp in eta_vencidas %}
+  <div style="display:flex; justify-content:space-between; align-items:center;
+              padding:8px 12px; background:white; border-radius:6px; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+    <div>
+      <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+         style="font-weight:600; color:var(--primary); text-decoration:none;">
+        {{ imp.numero }}
+      </a>
+      <span style="color:var(--gray); font-size:.9em; margin-left:8px;">{{ imp.proveedor_nombre }}</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="color:#dc2626; font-weight:600;">ETA: {{ imp.eta }}</span>
+      <span style="background:{{ estado_bgs.get(imp.estado, '#f1f1f1') }}; color:{{ estado_colors.get(imp.estado, '#333') }};
+                   padding:2px 10px; border-radius:10px; font-size:.8em; font-weight:700;">
+        {{ estado_labels.get(imp.estado, imp.estado) }}
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── KPI Cards ──────────────────────────────────────────────────────────── -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:14px; margin-bottom:28px;">
+  <div class="card" style="padding:18px 20px; border-left:4px solid #3b82f6;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:6px;">PAGADO ESTE MES</p>
+    <p style="font-size:1.6rem; font-weight:700; color:#1e40af;">${{ total_mes | pesos }}</p>
+    <p style="font-size:.75em; color:var(--gray);">{{ mes_actual }}</p>
+  </div>
+  <div class="card" style="padding:18px 20px; border-left:4px solid #8b5cf6;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:6px;">INVERTIDO HISTÓRICO</p>
+    <p style="font-size:1.6rem; font-weight:700; color:#6d28d9;">${{ total_historico | pesos }}</p>
+    <p style="font-size:.75em; color:var(--gray);">Total acumulado en pagos</p>
+  </div>
+  <div class="card" style="padding:18px 20px; border-left:4px solid #0891b2;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:6px;">EN TRÁNSITO / ADUANA</p>
+    <p style="font-size:1.6rem; font-weight:700; color:#155e75;">{{ en_transito|length }}</p>
+    <p style="font-size:.75em; color:var(--gray);">importación{% if en_transito|length != 1 %}es{% endif %}</p>
+  </div>
+  <div class="card" style="padding:18px 20px; border-left:4px solid #f59e0b;">
+    <p style="font-size:.75em; color:var(--gray); font-weight:600; margin-bottom:6px;">PENDIENTES DE PAGO</p>
+    <p style="font-size:1.6rem; font-weight:700; color:#92400e;">{{ pendientes_pago|length }}</p>
+    <p style="font-size:.75em; color:var(--gray);">con saldo por pagar</p>
+  </div>
+</div>
+
+<!-- ── Importaciones en tránsito / aduana ─────────────────────────────────── -->
+{% if en_transito %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="margin-bottom:16px;"><i class="bi bi-ship"></i> En tránsito / En aduana</h3>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Proveedor</th>
+          <th>Estado</th>
+          <th>Naviera</th>
+          <th>Tracking</th>
+          <th>ETA</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for imp in en_transito %}
+        <tr>
+          <td data-label="Número">
+            <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+               style="font-weight:600; color:var(--primary); text-decoration:none;">
+              {{ imp.numero }}
+            </a>
+          </td>
+          <td data-label="Proveedor">{{ imp.proveedor_nombre }}</td>
+          <td data-label="Estado">
+            <span style="background:{{ estado_bgs.get(imp.estado, '#f1f1f1') }};
+                         color:{{ estado_colors.get(imp.estado, '#333') }};
+                         padding:2px 10px; border-radius:10px; font-size:.8em; font-weight:700;">
+              {{ estado_labels.get(imp.estado, imp.estado) }}
+            </span>
+          </td>
+          <td data-label="Naviera" style="color:var(--gray); font-size:.9em;">{{ imp.naviera or '—' }}</td>
+          <td data-label="Tracking" style="font-size:.85em;">
+            {% if imp.numero_tracking %}
+            <a href="https://www.google.com/search?q={{ imp.numero_tracking | urlencode }}"
+               target="_blank" style="color:var(--primary); text-decoration:none;">
+              {{ imp.numero_tracking }} <i class="bi bi-box-arrow-up-right" style="font-size:.75em;"></i>
+            </a>
+            {% else %}
+            <span style="color:var(--gray);">—</span>
+            {% endif %}
+          </td>
+          <td data-label="ETA">
+            {% if imp.eta %}
+            <span style="font-weight:600; color:{% if imp.eta < hoy %}#dc2626{% elif imp.eta == hoy %}#d97706{% else %}#166534{% endif %};">
+              {% if imp.eta < hoy %}<i class="bi bi-exclamation-triangle-fill"></i> {% endif %}
+              {{ imp.eta }}
+            </span>
+            {% else %}
+            <span style="color:var(--gray);">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+               class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Pendientes de pago ──────────────────────────────────────────────────── -->
+{% if pendientes_pago %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="margin-bottom:16px;"><i class="bi bi-clock-history"></i> Pendientes de pago al proveedor</h3>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Proveedor</th>
+          <th>Estado</th>
+          <th>Fecha pedido</th>
+          <th style="text-align:right;">Total FOB</th>
+          <th style="text-align:right;">Pagado</th>
+          <th style="text-align:right;">Saldo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for imp in pendientes_pago %}
+        {% set saldo = imp.total_fob - imp.total_pagado %}
+        <tr>
+          <td data-label="Número">
+            <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+               style="font-weight:600; color:var(--primary); text-decoration:none;">
+              {{ imp.numero }}
+            </a>
+          </td>
+          <td data-label="Proveedor">{{ imp.proveedor_nombre }}</td>
+          <td data-label="Estado">
+            <span style="background:{{ estado_bgs.get(imp.estado, '#f1f1f1') }};
+                         color:{{ estado_colors.get(imp.estado, '#333') }};
+                         padding:2px 10px; border-radius:10px; font-size:.8em; font-weight:700;">
+              {{ estado_labels.get(imp.estado, imp.estado) }}
+            </span>
+          </td>
+          <td data-label="Fecha pedido" style="color:var(--gray); font-size:.9em;">{{ imp.fecha_pedido }}</td>
+          <td data-label="Total FOB" style="text-align:right; font-weight:600;">
+            {{ imp.moneda_origen }} {{ "%.2f"|format(imp.total_fob) }}
+          </td>
+          <td data-label="Pagado" style="text-align:right; color:#16a34a;">
+            {{ "%.2f"|format(imp.total_pagado) }}
+          </td>
+          <td data-label="Saldo" style="text-align:right; font-weight:700; color:#dc2626;">
+            {{ imp.moneda_origen }} {{ "%.2f"|format(saldo) }}
+          </td>
+          <td>
+            <a href="{{ url_for('importaciones.detalle', imp_id=imp.id) }}"
+               class="btn-secondary" style="padding:4px 10px; font-size:.8em;">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Sin actividad ─────────────────────────────────────────────────────── -->
+{% if not en_transito and not pendientes_pago and not eta_vencidas %}
+<div class="card" style="text-align:center; padding:40px 20px; color:var(--gray);">
+  <i class="bi bi-check-circle" style="font-size:2.5rem; color:#16a34a; display:block; margin-bottom:12px;"></i>
+  <p style="font-size:1.05em; font-weight:600;">Todo al día</p>
+  <p style="font-size:.9em; margin-top:4px;">No hay importaciones en tránsito ni pagos pendientes.</p>
+  {% if tiene_permiso('importaciones', 'crear') %}
+  <a href="{{ url_for('importaciones.nueva') }}" class="btn-primary" style="margin-top:16px; display:inline-block;">
+    <i class="bi bi-plus-lg"></i> Nueva importación
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── Estado general ─────────────────────────────────────────────────────── -->
+{% if por_estado %}
+<div class="card" style="margin-bottom:24px;">
+  <h3 style="margin-bottom:16px;"><i class="bi bi-pie-chart"></i> Distribución por estado</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:10px;">
+    {% for estado in estados %}
+    {% set count = por_estado.get(estado[0], 0) %}
+    {% if count > 0 %}
+    <a href="{{ url_for('importaciones.lista', estado=estado[0]) }}"
+       style="display:flex; align-items:center; gap:8px; padding:8px 14px;
+              background:{{ estado_bgs.get(estado[0], '#f1f1f1') }};
+              color:{{ estado_colors.get(estado[0], '#333') }};
+              border-radius:8px; text-decoration:none; font-weight:600; font-size:.9em;">
+      {{ estado[1] }}
+      <span style="background:white; padding:2px 8px; border-radius:10px; font-size:.85em;">
+        {{ count }}
+      </span>
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

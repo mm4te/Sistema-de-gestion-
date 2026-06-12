@@ -188,24 +188,53 @@ def seleccionar_pago():
 @login_required
 def confirmar_venta():
     metodo_pago = request.form.get('metodo_pago')
-    cuotas = request.form.get('cuotas', type=int)
-    carrito = session.get('carrito', [])
-    cliente_id = session.get('cliente_id_seleccionado')
+    cuotas      = request.form.get('cuotas', type=int)
+    carrito     = session.get('carrito', [])
+    cliente_id  = session.get('cliente_id_seleccionado')
+
     if not carrito or not cliente_id or not metodo_pago:
         flash("❌ Datos incompletos", "error")
         return redirect(url_for('ventas.ventas'))
-    if metodo_pago not in ['efectivo', 'transferencia', 'tarjeta']:
+
+    metodos_validos = ['efectivo', 'transferencia', 'tarjeta', 'sena']
+    if metodo_pago not in metodos_validos:
         flash("❌ Método de pago inválido", "error")
         return redirect(url_for('ventas.ventas'))
+
+    # Seña: el método real es el del input seña_metodo
+    es_sena     = (metodo_pago == 'sena')
+    monto_sena  = None
+    if es_sena:
+        metodo_pago = request.form.get('sena_metodo', 'efectivo')
+        try:
+            monto_sena = float(request.form.get('monto_sena', '0').replace(',', '.'))
+        except ValueError:
+            flash("❌ Monto de seña inválido", "error")
+            return redirect(url_for('ventas.seleccionar_pago'))
+        cuotas = None
+
     if metodo_pago == 'tarjeta' and cuotas not in [1, 2, 3, 6]:
         flash("❌ Cuotas inválidas", "error")
         return redirect(url_for('ventas.seleccionar_pago'))
     if metodo_pago != 'tarjeta':
         cuotas = None
+
     monto_recibido = request.form.get('monto_recibido', type=float)
     vuelto         = request.form.get('vuelto', type=float)
-    success, result = registrar_venta(cliente_id, carrito, metodo_pago, cuotas,
-                                      monto_recibido, vuelto, creado_por=g.user_id)
+
+    # Descuento
+    descuento_tipo  = request.form.get('descuento_tipo', 'ninguno').strip()
+    try:
+        descuento_valor = float(request.form.get('descuento_valor', '0').replace(',', '.') or '0')
+    except ValueError:
+        descuento_valor = 0
+
+    success, result = registrar_venta(
+        cliente_id, carrito, metodo_pago, cuotas,
+        monto_recibido, vuelto, creado_por=g.user_id,
+        descuento_tipo=descuento_tipo, descuento_valor=descuento_valor,
+        es_sena=es_sena, monto_sena=monto_sena,
+    )
     if success:
         session.pop('carrito', None)
         session.pop('cliente_id_seleccionado', None)

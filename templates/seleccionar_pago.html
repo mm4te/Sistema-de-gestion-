@@ -4,18 +4,56 @@
 {% block content %}
 <a href="/ventas" class="back-link">← Volver a ventas</a>
 
-<div style="max-width: 560px; margin: 28px auto; text-align: center;">
+<div style="max-width: 580px; margin: 28px auto; text-align: center;">
 
-  <!-- Total -->
-  <div class="pago-total-card">
-    <span class="pago-total-label">Total a pagar</span>
-    <span class="pago-total-monto">${{ "%.2f"|format(total) }}</span>
+  <!-- Subtotal + Descuento + Total -->
+  <div class="pago-total-card" style="padding: 20px 24px;">
+    <div id="resumen-precios">
+      <div id="row-subtotal" style="display:none; justify-content:space-between; margin-bottom:6px; font-size:.95rem; color:#6B7280;">
+        <span>Subtotal</span>
+        <span id="lbl-subtotal"></span>
+      </div>
+      <div id="row-descuento" style="display:none; justify-content:space-between; margin-bottom:6px; font-size:.95rem; color:#16A34A;">
+        <span id="lbl-desc-tipo">Descuento</span>
+        <span id="lbl-descuento-monto"></span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="pago-total-label">Total a pagar</span>
+        <span class="pago-total-monto" id="lbl-total">${{ "%.2f"|format(total) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de descuento -->
+  <div style="margin: 16px 0; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:16px 20px; text-align:left;">
+    <p style="font-weight:600; font-size:.9rem; margin-bottom:10px; color:#15803D;">
+      <i class="bi bi-tag"></i> Descuento (opcional)
+    </p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <select id="descuento-tipo" name="descuento_tipo_ui"
+              style="padding:8px 12px; border:1px solid #D1FAE5; border-radius:7px;
+                     font-size:.95rem; background:white; cursor:pointer; flex-shrink:0;">
+        <option value="ninguno">Sin descuento</option>
+        <option value="porcentaje">Porcentaje (%)</option>
+        <option value="monto">Monto fijo ($)</option>
+      </select>
+      <div id="div-descuento-valor" style="display:none; flex:1; position:relative; min-width:160px;">
+        <span id="prefix-desc" style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                                       color:#6B7280; font-weight:600; pointer-events:none;">%</span>
+        <input type="number" id="descuento-valor" min="0" step="0.01"
+               placeholder="0"
+               style="width:100%; padding:8px 12px 8px 30px; border:1px solid #D1FAE5;
+                      border-radius:7px; font-size:.95rem; box-sizing:border-box;">
+      </div>
+    </div>
   </div>
 
   <form id="pago-form" method="post" action="/confirmar_venta">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="monto_recibido" id="hidden-monto-recibido">
-    <input type="hidden" name="vuelto" id="hidden-vuelto">
+    <input type="hidden" name="vuelto"         id="hidden-vuelto">
+    <input type="hidden" name="descuento_tipo"  id="hidden-descuento-tipo"  value="ninguno">
+    <input type="hidden" name="descuento_valor" id="hidden-descuento-valor" value="0">
 
     <!-- Métodos de pago -->
     <div class="pago-metodos">
@@ -35,6 +73,12 @@
         <input type="radio" id="tarjeta" name="metodo_pago" value="tarjeta">
         <i class="bi bi-credit-card" style="color: #8B5CF6;"></i>
         <span>Tarjeta de crédito</span>
+      </label>
+
+      <label class="pago-card" for="sena">
+        <input type="radio" id="sena" name="metodo_pago" value="sena">
+        <i class="bi bi-hourglass-split" style="color: #F59E0B;"></i>
+        <span>Seña / Parcial</span>
       </label>
     </div>
 
@@ -72,6 +116,42 @@
       </div>
     </div>
 
+    <!-- Panel de seña -->
+    <div class="cuotas-panel" id="sena-section" style="display: none; text-align:left;">
+      <p class="cuotas-label">Seña / Pago parcial</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:.85rem; font-weight:600; margin-bottom:6px; color:#6B7280;">
+            Monto de la seña
+          </label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%);
+                         color:#6B7280; font-weight:600; pointer-events:none;">$</span>
+            <input type="number" id="monto-sena-input" name="monto_sena" min="1" step="0.01"
+                   placeholder="0.00"
+                   style="width:100%; padding:10px 12px 10px 28px; border:1.5px solid #FDE68A;
+                          border-radius:8px; font-size:1rem; box-sizing:border-box;">
+          </div>
+        </div>
+        <div>
+          <label style="display:block; font-size:.85rem; font-weight:600; margin-bottom:6px; color:#6B7280;">
+            Método de pago de la seña
+          </label>
+          <select name="sena_metodo" id="sena-metodo"
+                  style="width:100%; padding:10px 12px; border:1.5px solid #FDE68A;
+                         border-radius:8px; font-size:1rem; background:white;">
+            <option value="efectivo">💵 Efectivo</option>
+            <option value="transferencia">📲 Transferencia</option>
+            <option value="tarjeta">💳 Tarjeta</option>
+          </select>
+        </div>
+      </div>
+      <div id="sena-resumen" style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
+                                     padding:12px 16px; font-size:.9rem; min-height:48px;">
+        <span style="color:#92400E;">Ingresá el monto de la seña para ver el saldo pendiente.</span>
+      </div>
+    </div>
+
     <!-- Confirmar -->
     <div style="margin-top: 32px;">
       <button type="submit" id="btn-confirmar" class="btn-confirmar" disabled>
@@ -85,121 +165,200 @@
 
 {% block scripts %}
 <script>
-  var totalAPagar = {{ total | tojson }};
+  var totalOriginal = {{ total | tojson }};
+  var totalAPagar   = totalOriginal;
 
-  const pagoForm         = document.getElementById('pago-form');
-  const metodoInputs     = document.querySelectorAll('input[name="metodo_pago"]');
-  const cuotaInputs      = document.querySelectorAll('input[name="cuotas"]');
-  const cuotasSection    = document.getElementById('cuotas-section');
-  const efectivoSection  = document.getElementById('efectivo-section');
-  const montoInput       = document.getElementById('monto-recibido-input');
-  const vueltoDisplay    = document.getElementById('vuelto-display');
-  const hiddenMonto      = document.getElementById('hidden-monto-recibido');
-  const hiddenVuelto     = document.getElementById('hidden-vuelto');
-  const btnConfirmar     = document.getElementById('btn-confirmar');
+  // ── Descuento ───────────────────────────────────────────────────────────────
+  var descTipo  = document.getElementById('descuento-tipo');
+  var descValor = document.getElementById('descuento-valor');
+  var divDescValor = document.getElementById('div-descuento-valor');
+  var prefixDesc   = document.getElementById('prefix-desc');
+  var lblSubtotal  = document.getElementById('lbl-subtotal');
+  var lblDescTipo  = document.getElementById('lbl-desc-tipo');
+  var lblDescMonto = document.getElementById('lbl-descuento-monto');
+  var lblTotal     = document.getElementById('lbl-total');
+  var rowSubtotal  = document.getElementById('row-subtotal');
+  var rowDescuento = document.getElementById('row-descuento');
+  var hiddenDescTipo  = document.getElementById('hidden-descuento-tipo');
+  var hiddenDescValor = document.getElementById('hidden-descuento-valor');
+
+  function formatARS(n) {
+    return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function calcDescuento() {
+    var tipo = descTipo.value;
+    var val  = parseFloat(descValor.value) || 0;
+    var monto = 0;
+    if (tipo === 'porcentaje' && val > 0 && val <= 100) {
+      monto = totalOriginal * val / 100;
+    } else if (tipo === 'monto' && val > 0 && val < totalOriginal) {
+      monto = val;
+    }
+    totalAPagar = totalOriginal - monto;
+
+    hiddenDescTipo.value  = (monto > 0) ? tipo : 'ninguno';
+    hiddenDescValor.value = (monto > 0) ? val  : 0;
+
+    if (monto > 0) {
+      rowSubtotal.style.display  = 'flex';
+      rowDescuento.style.display = 'flex';
+      lblSubtotal.textContent  = formatARS(totalOriginal);
+      var tipoLabel = tipo === 'porcentaje' ? 'Descuento (' + val + '%)' : 'Descuento';
+      lblDescTipo.textContent  = tipoLabel;
+      lblDescMonto.textContent = '-' + formatARS(monto);
+    } else {
+      rowSubtotal.style.display  = 'none';
+      rowDescuento.style.display = 'none';
+    }
+    lblTotal.textContent = formatARS(totalAPagar);
+
+    // Actualizar seña si está activa
+    updateSenaResumen();
+    updateVuelto();
+    updateBtn();
+  }
+
+  descTipo.addEventListener('change', function() {
+    if (this.value === 'ninguno') {
+      divDescValor.style.display = 'none';
+      descValor.value = '';
+    } else {
+      divDescValor.style.display = 'block';
+      prefixDesc.textContent = (this.value === 'porcentaje') ? '%' : '$';
+      descValor.focus();
+    }
+    calcDescuento();
+  });
+  descValor.addEventListener('input', calcDescuento);
+
+  // ── Pago ────────────────────────────────────────────────────────────────────
+  const pagoForm        = document.getElementById('pago-form');
+  const metodoInputs    = document.querySelectorAll('input[name="metodo_pago"]');
+  const cuotaInputs     = document.querySelectorAll('input[name="cuotas"]');
+  const cuotasSection   = document.getElementById('cuotas-section');
+  const efectivoSection = document.getElementById('efectivo-section');
+  const senaSection     = document.getElementById('sena-section');
+  const montoInput      = document.getElementById('monto-recibido-input');
+  const vueltoDisplay   = document.getElementById('vuelto-display');
+  const hiddenMonto     = document.getElementById('hidden-monto-recibido');
+  const hiddenVuelto    = document.getElementById('hidden-vuelto');
+  const btnConfirmar    = document.getElementById('btn-confirmar');
+  const montoSenaInput  = document.getElementById('monto-sena-input');
+  const senaResumen     = document.getElementById('sena-resumen');
 
   function updateBtn() {
-    const metodo = document.querySelector('input[name="metodo_pago"]:checked');
+    var metodo = document.querySelector('input[name="metodo_pago"]:checked');
     if (!metodo) { btnConfirmar.disabled = true; return; }
-
     if (metodo.value === 'tarjeta') {
       btnConfirmar.disabled = !document.querySelector('input[name="cuotas"]:checked');
       return;
     }
     if (metodo.value === 'efectivo') {
-      const monto = parseFloat(montoInput.value);
+      var monto = parseFloat(montoInput.value);
       btnConfirmar.disabled = isNaN(monto) || monto < totalAPagar;
+      return;
+    }
+    if (metodo.value === 'sena') {
+      var mSena = parseFloat(montoSenaInput.value);
+      btnConfirmar.disabled = isNaN(mSena) || mSena <= 0 || mSena >= totalAPagar;
       return;
     }
     btnConfirmar.disabled = false;
   }
 
   function updateVuelto() {
-    const monto = parseFloat(montoInput.value);
+    var metodo = document.querySelector('input[name="metodo_pago"]:checked');
+    if (!metodo || metodo.value !== 'efectivo') return;
+    var monto = parseFloat(montoInput.value);
     if (isNaN(monto) || montoInput.value === '') {
       vueltoDisplay.textContent = '';
       hiddenMonto.value = '';
       hiddenVuelto.value = '';
-      updateBtn();
-      return;
+      updateBtn(); return;
     }
-    const vuelto = monto - totalAPagar;
-    hiddenMonto.value = monto.toFixed(2);
+    var vuelto = monto - totalAPagar;
+    hiddenMonto.value  = monto.toFixed(2);
     hiddenVuelto.value = Math.max(0, vuelto).toFixed(2);
     if (vuelto < 0) {
       vueltoDisplay.innerHTML = '<span style="color:#DC2626;">Monto insuficiente</span>';
     } else {
       vueltoDisplay.innerHTML =
-        'Vuelto: <span style="color:#16A34A;">$' +
-        vuelto.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) +
-        '</span>';
+        'Vuelto: <span style="color:#16A34A;">' + formatARS(vuelto) + '</span>';
     }
     updateBtn();
   }
 
-  montoInput.addEventListener('input', updateVuelto);
-  montoInput.addEventListener('focus', function() {
-    this.style.borderColor = 'var(--primary)';
-  });
-  montoInput.addEventListener('blur', function() {
-    this.style.borderColor = '#E5E7EB';
-  });
+  function updateSenaResumen() {
+    var mSena = parseFloat(montoSenaInput.value);
+    if (isNaN(mSena) || mSena <= 0) {
+      senaResumen.innerHTML = '<span style="color:#92400E;">Ingresá el monto de la seña para ver el saldo pendiente.</span>';
+      return;
+    }
+    if (mSena >= totalAPagar) {
+      senaResumen.innerHTML = '<span style="color:#DC2626;">La seña no puede ser igual o mayor al total.</span>';
+      return;
+    }
+    var saldo = totalAPagar - mSena;
+    senaResumen.innerHTML =
+      '<strong>Seña:</strong> ' + formatARS(mSena) +
+      ' &nbsp;·&nbsp; <strong>Saldo pendiente:</strong> <span style="color:#DC2626;">' +
+      formatARS(saldo) + '</span>';
+    updateBtn();
+  }
 
-  metodoInputs.forEach(input => {
-    input.addEventListener('change', function () {
-      document.querySelectorAll('.pago-card').forEach(c => c.classList.remove('selected'));
+  montoInput.addEventListener('input', function() { updateVuelto(); updateBtn(); });
+  montoSenaInput.addEventListener('input', function() { updateSenaResumen(); updateBtn(); });
+
+  metodoInputs.forEach(function(input) {
+    input.addEventListener('change', function() {
+      document.querySelectorAll('.pago-card').forEach(function(c) { c.classList.remove('selected'); });
       this.closest('.pago-card').classList.add('selected');
+
+      efectivoSection.style.display = 'none';
+      cuotasSection.style.display   = 'none';
+      senaSection.style.display     = 'none';
+      cuotaInputs.forEach(function(c) { c.checked = false; c.closest('.cuota-chip').classList.remove('selected'); });
+      montoInput.value = '';
+      hiddenMonto.value = '';
+      hiddenVuelto.value = '';
 
       if (this.value === 'efectivo') {
         efectivoSection.style.display = 'block';
-        cuotasSection.style.display = 'none';
-        cuotaInputs.forEach(c => {
-          c.checked = false;
-          c.closest('.cuota-chip').classList.remove('selected');
-        });
-        montoInput.value = '';
-        vueltoDisplay.textContent = '';
-        hiddenMonto.value = '';
-        hiddenVuelto.value = '';
       } else if (this.value === 'tarjeta') {
         cuotasSection.style.display = 'block';
-        efectivoSection.style.display = 'none';
-        montoInput.value = '';
-        hiddenMonto.value = '';
-        hiddenVuelto.value = '';
-      } else {
-        efectivoSection.style.display = 'none';
-        cuotasSection.style.display = 'none';
-        cuotaInputs.forEach(c => {
-          c.checked = false;
-          c.closest('.cuota-chip').classList.remove('selected');
-        });
-        montoInput.value = '';
-        hiddenMonto.value = '';
-        hiddenVuelto.value = '';
+      } else if (this.value === 'sena') {
+        senaSection.style.display = 'block';
+        updateSenaResumen();
       }
       updateBtn();
     });
   });
 
-  cuotaInputs.forEach(input => {
-    input.addEventListener('change', function () {
-      document.querySelectorAll('.cuota-chip').forEach(c => c.classList.remove('selected'));
+  cuotaInputs.forEach(function(input) {
+    input.addEventListener('change', function() {
+      document.querySelectorAll('.cuota-chip').forEach(function(c) { c.classList.remove('selected'); });
       this.closest('.cuota-chip').classList.add('selected');
       updateBtn();
     });
   });
 
-  pagoForm.addEventListener('submit', function (e) {
-    const metodo = document.querySelector('input[name="metodo_pago"]:checked');
-    if (!metodo) { e.preventDefault(); alert('❌ Selecciona un método de pago.'); return; }
+  pagoForm.addEventListener('submit', function(e) {
+    var metodo = document.querySelector('input[name="metodo_pago"]:checked');
+    if (!metodo) { e.preventDefault(); alert('❌ Seleccioná un método de pago.'); return; }
     if (metodo.value === 'tarjeta' && !document.querySelector('input[name="cuotas"]:checked')) {
-      e.preventDefault(); alert('❌ Selecciona una opción de cuotas.'); return;
+      e.preventDefault(); alert('❌ Seleccioná una opción de cuotas.'); return;
     }
     if (metodo.value === 'efectivo') {
-      const monto = parseFloat(montoInput.value);
+      var monto = parseFloat(montoInput.value);
       if (isNaN(monto) || monto < totalAPagar) {
         e.preventDefault(); alert('❌ El monto recibido es insuficiente.'); return;
+      }
+    }
+    if (metodo.value === 'sena') {
+      var mSena = parseFloat(montoSenaInput.value);
+      if (isNaN(mSena) || mSena <= 0 || mSena >= totalAPagar) {
+        e.preventDefault(); alert('❌ El monto de la seña debe ser mayor a 0 y menor al total.'); return;
       }
     }
   });
