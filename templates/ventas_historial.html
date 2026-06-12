@@ -78,8 +78,16 @@
         </td>
         <td data-label="Factura">
           {% if v['factura_emitida'] %}
-          <span style="background:#DCFCE7;color:#16A34A;padding:2px 10px;border-radius:20px;
-                       font-size:.8rem;font-weight:600;">Sí</span>
+            {% if v['nota_credito_emitida'] %}
+            <span style="background:#EDE9FE;color:#7C3AED;padding:2px 10px;border-radius:20px;
+                         font-size:.8rem;font-weight:600;" title="Factura con NC emitida">NC ✓</span>
+            {% elif cancelada %}
+            <span style="background:#FEF3C7;color:#92400E;padding:2px 10px;border-radius:20px;
+                         font-size:.8rem;font-weight:600;" title="Cancelada sin Nota de Crédito">⚠ Sin NC</span>
+            {% else %}
+            <span style="background:#DCFCE7;color:#16A34A;padding:2px 10px;border-radius:20px;
+                         font-size:.8rem;font-weight:600;">Sí</span>
+            {% endif %}
           {% else %}
           <span style="color:#9CA3AF;font-size:.85rem;">No</span>
           {% endif %}

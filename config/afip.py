@@ -24,6 +24,8 @@ WSFE_WSDL = {
 # Tipos de comprobante AFIP
 CBTE_TIPO_FACTURA_A = 1
 CBTE_TIPO_FACTURA_B = 6
+CBTE_TIPO_NC_A      = 3
+CBTE_TIPO_NC_B      = 8
 
 # IVA alícuota id=5 → 21%
 IVA_ALICUOTA_21 = 5

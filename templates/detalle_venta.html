@@ -33,6 +33,18 @@
          style="background:#16A34A;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
         📄 Descargar Factura
       </a>
+      {% if not venta['nota_credito_emitida'] %}
+      <form method="post"
+            action="{{ url_for('ventas_historial.emitir_nota_credito', venta_id=venta[0]) }}"
+            onsubmit="return confirm('¿Emitir Nota de Crédito para esta venta? Esta acción anula la factura ante AFIP.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+          style="background:#7C3AED;color:white;padding:8px 16px;border-radius:6px;border:none;
+                 font-weight:600;font-size:.9em;cursor:pointer;">
+          📝 Emitir NC
+        </button>
+      </form>
+      {% endif %}
       {% endif %}
     {% endif %}
   </div>
@@ -99,6 +111,49 @@
 </div>
 {% endif %}
 
+{% if venta['nota_credito_emitida'] %}
+<div class="card" style="margin: 0 0 20px; border-left: 4px solid #7C3AED;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+    <div>
+      <p style="color:var(--gray); font-size:.85rem; margin-bottom:6px;">Nota de Crédito Electrónica</p>
+      <p style="font-weight:700; font-size:1.05rem; color:#7C3AED;">
+        NC {{ venta['nota_credito_tipo'] }}
+        &nbsp;N° {{ "%08d"|format(venta['nota_credito_numero']) }}
+      </p>
+      <p style="font-size:.9rem; margin-top:4px;">
+        <strong>CAE:</strong> {{ venta['nota_credito_cae'] }}
+        &nbsp;&nbsp;
+        <strong>Vence:</strong> {{ venta['nota_credito_cae_vto'] }}
+      </p>
+      <p style="font-size:.85rem; color:var(--gray); margin-top:2px;">
+        Emitida: {{ venta['nota_credito_fecha'][:16] if venta['nota_credito_fecha'] else '—' }}
+      </p>
+      {% if venta['factura_emitida'] %}
+      <p style="font-size:.85rem; color:var(--gray); margin-top:2px;">
+        Comp. asociado: Factura {{ venta['factura_tipo'] }} N° {{ "%08d"|format(venta['factura_numero']) }}
+      </p>
+      {% endif %}
+      {% if venta['nota_credito_motivo'] %}
+      <p style="font-size:.85rem; margin-top:4px;"><strong>Motivo:</strong> {{ venta['nota_credito_motivo'] }}</p>
+      {% endif %}
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+      <span style="background:#EDE9FE;color:#7C3AED;padding:4px 14px;border-radius:20px;
+                   font-size:.82rem;font-weight:700;white-space:nowrap;">
+        ✅ NC Autorizada
+      </span>
+      {% if venta['nota_credito_pdf_path'] %}
+      <a href="{{ url_for('ventas_historial.descargar_nc_pdf', venta_id=venta[0]) }}"
+         style="background:#7C3AED;color:white;padding:6px 14px;border-radius:6px;
+                text-decoration:none;font-weight:600;font-size:.85em;">
+        📄 Descargar NC
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <h2>Productos comprados</h2>
 {% if productos %}
 <div class="table-responsive">
@@ -141,6 +196,9 @@
     <p style="color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; border-radius:6px;
               padding:10px 14px; font-size:0.88rem; margin-bottom:18px;">
       ⚠️ Esta acción revertirá el stock de todos los productos de la venta.
+      {% if venta['factura_emitida'] and not venta['nota_credito_emitida'] %}
+      <br><strong>La venta tiene factura emitida: se emitirá automáticamente una Nota de Crédito ante AFIP.</strong>
+      {% endif %}
     </p>
     <form method="post" action="{{ url_for('ventas_historial.cancelar_venta', venta_id=venta[0]) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

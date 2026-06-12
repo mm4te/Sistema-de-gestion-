@@ -258,6 +258,7 @@ def exportar_pdf(year, month, empresa='Comenda Deco'):
 
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
+                            title=f"Resumen {month:02d}/{year} - {empresa}",
                             leftMargin=2*cm, rightMargin=2*cm,
                             topMargin=2*cm,  bottomMargin=2*cm)
 

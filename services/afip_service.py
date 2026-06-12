@@ -1,6 +1,7 @@
 # services/afip_service.py
 import base64
 import io
+import json
 import logging
 import os
 import xml.etree.ElementTree as ET
@@ -8,8 +9,46 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
-# Cache del ticket WSAA en memoria (dura hasta su vencimiento)
+# Cache del ticket WSAA — persiste en disco para sobrevivir reinicios
 _wsaa_cache = {}  # {servicio: {'token': str, 'sign': str, 'expira': datetime}}
+_TICKET_CACHE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    '.afip_ticket_cache.json',
+)
+
+
+def _load_ticket_cache():
+    try:
+        if not os.path.exists(_TICKET_CACHE_FILE):
+            return
+        with open(_TICKET_CACHE_FILE, 'r') as f:
+            data = json.load(f)
+        ahora = datetime.now(timezone.utc)
+        for servicio, entry in data.items():
+            expira = datetime.fromisoformat(entry['expira'])
+            if expira > ahora:
+                _wsaa_cache[servicio] = {
+                    'token':  entry['token'],
+                    'sign':   entry['sign'],
+                    'expira': expira,
+                }
+    except Exception:
+        pass
+
+
+def _save_ticket_cache():
+    try:
+        data = {
+            k: {'token': v['token'], 'sign': v['sign'], 'expira': v['expira'].isoformat()}
+            for k, v in _wsaa_cache.items()
+        }
+        with open(_TICKET_CACHE_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+_load_ticket_cache()
 
 
 # ── Helpers de configuración ─────────────────────────────────────────────────
@@ -92,7 +131,17 @@ def _obtener_ticket(servicio='wsfe'):
         wsdl=WSAA_WSDL[cfg['modo']],
         settings=Settings(strict=False, xml_huge_tree=True),
     )
-    resp_xml = client.service.loginCms(in0=cms_b64)
+    try:
+        resp_xml = client.service.loginCms(in0=cms_b64)
+    except Exception as e:
+        msg = str(e)
+        if 'CEE ya posee un TA' in msg or 'TA valido' in msg:
+            raise RuntimeError(
+                "WSAA ya tiene un ticket activo para este certificado. "
+                "Esperá unos minutos y volvé a intentar, o reiniciá el servidor "
+                "luego de que el ticket expire (máx. 12 hs desde la última emisión)."
+            ) from None
+        raise
 
     root  = ET.fromstring(resp_xml)
     token = root.findtext('credentials/token')
@@ -106,6 +155,7 @@ def _obtener_ticket(servicio='wsfe'):
         expira = ahora + timedelta(hours=11, minutes=50)
 
     _wsaa_cache[servicio] = {'token': token, 'sign': sign, 'expira': expira}
+    _save_ticket_cache()
     logger.info("Ticket WSAA obtenido para servicio '%s' (expira %s)", servicio, expira)
     return token, sign
 
@@ -176,10 +226,11 @@ def emitir_factura(venta, cliente, productos):
     total = round(float(venta['total']), 2)
     if cbte_tipo == CBTE_TIPO_FACTURA_A:
         imp_neto = round(total / (1 + IVA_PCT_21), 2)
-        imp_iva  = round(total - imp_neto, 2)         # ajuste por redondeo
+        imp_iva  = round(total - imp_neto, 2)
     else:
-        imp_neto = total
-        imp_iva  = 0.0
+        # RG 5616: ImpNeto > 0 obliga a incluir objeto Iva — siempre desglosar
+        imp_neto = round(total / (1 + IVA_PCT_21), 2)
+        imp_iva  = round(total - imp_neto, 2)
 
     fecha_cbte = (str(venta['fecha'] or '')[:10]).replace('-', '')  # YYYYMMDD
 
@@ -196,27 +247,36 @@ def emitir_factura(venta, cliente, productos):
     else:
         doc_tipo, doc_nro = 99, 0  # Sin identificar (Consumidor Final)
 
+    # RG 5616: condición IVA del receptor (obligatorio)
+    _COND_IVA_ID = {
+        'responsable_inscripto': 1,
+        'exento':                3,
+        'consumidor_final':      5,
+        'monotributista':        6,
+    }
+    cond_iva_id = _COND_IVA_ID.get(condicion, 5)
+
     # Armar detalle
     det = {
-        'Concepto':   1,           # 1=Productos, 2=Servicios, 3=Productos y Servicios
-        'DocTipo':    doc_tipo,
-        'DocNro':     doc_nro,
-        'CbteDesde':  nro_cbte,
-        'CbteHasta':  nro_cbte,
-        'CbteFch':    fecha_cbte,
-        'ImpTotal':   total,
-        'ImpTotConc': 0.0,
-        'ImpNeto':    imp_neto,
-        'ImpOpEx':    0.0,
-        'ImpIVA':     imp_iva,
-        'ImpTrib':    0.0,
-        'MonId':      'PES',
-        'MonCotiz':   1.0,
+        'Concepto':              1,
+        'DocTipo':               doc_tipo,
+        'DocNro':                doc_nro,
+        'CbteDesde':             nro_cbte,
+        'CbteHasta':             nro_cbte,
+        'CbteFch':               fecha_cbte,
+        'ImpTotal':              total,
+        'ImpTotConc':            0.0,
+        'ImpNeto':               imp_neto,
+        'ImpOpEx':               0.0,
+        'ImpIVA':                imp_iva,
+        'ImpTrib':               0.0,
+        'MonId':                 'PES',
+        'MonCotiz':              1.0,
+        'CondicionIVAReceptorId': cond_iva_id,
     }
-    if cbte_tipo == CBTE_TIPO_FACTURA_A and imp_iva > 0:
-        det['Iva'] = {
-            'AlicIva': [{'Id': IVA_ALICUOTA_21, 'BaseImp': imp_neto, 'Importe': imp_iva}]
-        }
+    det['Iva'] = {
+        'AlicIva': [{'Id': IVA_ALICUOTA_21, 'BaseImp': imp_neto, 'Importe': imp_iva}]
+    }
 
     client = _wsfe_client()
     resp   = client.service.FECAESolicitar(
@@ -269,12 +329,146 @@ def emitir_factura(venta, cliente, productos):
     }
 
 
+# ── Nota de Crédito ───────────────────────────────────────────────────────────
+
+def emitir_nota_credito(venta, cliente):
+    """
+    Solicita CAE para una Nota de Crédito que anula la factura de la venta.
+    Devuelve dict con los mismos campos que emitir_factura.
+    Lanza ValueError o RuntimeError ante errores esperados.
+    """
+    from config.afip import (
+        CBTE_TIPO_NC_A, CBTE_TIPO_NC_B,
+        CBTE_TIPO_FACTURA_A, CBTE_TIPO_FACTURA_B,
+        IVA_ALICUOTA_21, IVA_PCT_21,
+    )
+
+    cfg = _cfg()
+
+    factura_tipo = (venta['factura_tipo'] or '').upper().strip()
+    if not factura_tipo or not venta['factura_numero']:
+        raise ValueError("La venta no tiene factura emitida con número válido.")
+
+    if factura_tipo == 'A':
+        cbte_tipo_nc       = CBTE_TIPO_NC_A
+        cbte_tipo_original = CBTE_TIPO_FACTURA_A
+        tipo_letra         = 'A'
+    else:
+        cbte_tipo_nc       = CBTE_TIPO_NC_B
+        cbte_tipo_original = CBTE_TIPO_FACTURA_B
+        tipo_letra         = 'B'
+
+    ultimo   = obtener_ultimo_numero(cbte_tipo_nc)
+    nro_cbte = ultimo + 1
+
+    total    = round(float(venta['total']), 2)
+    imp_neto = round(total / (1 + IVA_PCT_21), 2)
+    imp_iva  = round(total - imp_neto, 2)
+
+    fecha_cbte  = datetime.now().strftime('%Y%m%d')
+    condicion   = (cliente['condicion_iva'] or 'consumidor_final').lower().strip()
+    cuit_limpio = str(cliente['cuit'] or '').replace('-', '').replace(' ', '').strip()
+    dni_limpio  = str(cliente['dni']  or '').replace('.', '').replace(' ', '').strip()
+
+    if cbte_tipo_nc == CBTE_TIPO_NC_A:
+        doc_tipo, doc_nro = 80, int(cuit_limpio)
+    elif cuit_limpio:
+        doc_tipo, doc_nro = 80, int(cuit_limpio)
+    elif dni_limpio:
+        doc_tipo, doc_nro = 96, int(dni_limpio)
+    else:
+        doc_tipo, doc_nro = 99, 0
+
+    _COND_IVA_ID = {
+        'responsable_inscripto': 1,
+        'exento':                3,
+        'consumidor_final':      5,
+        'monotributista':        6,
+    }
+    cond_iva_id = _COND_IVA_ID.get(condicion, 5)
+
+    det = {
+        'Concepto':               1,
+        'DocTipo':                doc_tipo,
+        'DocNro':                 doc_nro,
+        'CbteDesde':              nro_cbte,
+        'CbteHasta':              nro_cbte,
+        'CbteFch':                fecha_cbte,
+        'ImpTotal':               total,
+        'ImpTotConc':             0.0,
+        'ImpNeto':                imp_neto,
+        'ImpOpEx':                0.0,
+        'ImpIVA':                 imp_iva,
+        'ImpTrib':                0.0,
+        'MonId':                  'PES',
+        'MonCotiz':               1.0,
+        'CondicionIVAReceptorId': cond_iva_id,
+        'CbtesAsoc': {
+            'CbteAsoc': [{
+                'Tipo':   cbte_tipo_original,
+                'PtoVta': cfg['punto_venta'],
+                'Nro':    int(venta['factura_numero']),
+                'Cuit':   int(cfg['cuit']),
+            }]
+        },
+    }
+    det['Iva'] = {
+        'AlicIva': [{'Id': IVA_ALICUOTA_21, 'BaseImp': imp_neto, 'Importe': imp_iva}]
+    }
+
+    client = _wsfe_client()
+    resp   = client.service.FECAESolicitar(
+        Auth=_auth(),
+        FeCAEReq={
+            'FeCabReq': {
+                'CantReg':  1,
+                'PtoVta':   cfg['punto_venta'],
+                'CbteTipo': cbte_tipo_nc,
+            },
+            'FeDetReq': {'FECAEDetRequest': [det]},
+        },
+    )
+
+    if resp.Errors:
+        msgs = [f"[{e.Code}] {e.Msg}" for e in resp.Errors.Err]
+        raise RuntimeError("AFIP error NC: " + "; ".join(msgs))
+
+    det_resp = resp.FeDetResp.FECAEDetResponse[0]
+    if det_resp.Resultado == 'R':
+        obs = []
+        if det_resp.Observaciones and det_resp.Observaciones.Obs:
+            obs = [f"[{o.Code}] {o.Msg}" for o in det_resp.Observaciones.Obs]
+        raise RuntimeError("AFIP rechazó la NC: " + ("; ".join(obs) or "sin detalle"))
+
+    cae       = det_resp.CAE
+    cae_vto_r = str(det_resp.CAEFchVto or '')
+    try:
+        cae_vto = datetime.strptime(cae_vto_r, '%Y%m%d').strftime('%Y-%m-%d')
+    except Exception:
+        cae_vto = cae_vto_r
+
+    logger.info("NC %s N° %05d-%08d emitida. CAE: %s vto: %s",
+                tipo_letra, cfg['punto_venta'], nro_cbte, cae, cae_vto)
+    return {
+        'tipo':        tipo_letra,
+        'numero':      nro_cbte,
+        'cae':         cae,
+        'cae_vto':     cae_vto,
+        'fecha':       datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'cbte_tipo':   cbte_tipo_nc,
+        'punto_venta': cfg['punto_venta'],
+        'imp_neto':    imp_neto,
+        'imp_iva':     imp_iva,
+    }
+
+
 # ── Generación de PDF ─────────────────────────────────────────────────────────
 
-def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
+def generar_pdf_factura(venta_id, venta, cliente, productos, factura,
+                        es_nota_credito=False, cbte_asoc_str=None):
     """
-    Genera el PDF de la factura electrónica y lo guarda en static/facturas/.
-    Devuelve la ruta relativa al proyecto (ej: 'static/facturas/venta_5_factura.pdf').
+    Genera el PDF de la factura (o nota de crédito) y lo guarda en static/facturas/.
+    Devuelve la ruta relativa al proyecto.
     """
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -296,12 +490,15 @@ def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
     facturas_dir = os.path.join(base_dir, 'static', 'facturas')
     os.makedirs(facturas_dir, exist_ok=True)
 
-    filename  = f"venta_{venta_id}_factura.pdf"
+    suffix    = 'notacredito' if es_nota_credito else 'factura'
+    filename  = f"venta_{venta_id}_{suffix}.pdf"
     abs_path  = os.path.join(facturas_dir, filename)
     rel_path  = f"static/facturas/{filename}"
 
     buf = io.BytesIO()
+    titulo_doc = f"{'Nota de Crédito' if es_nota_credito else 'Factura'} {tipo} {nro_fmt} - Venta #{venta_id}"
     doc = SimpleDocTemplate(buf, pagesize=A4,
+                            title=titulo_doc,
                             leftMargin=2*cm, rightMargin=2*cm,
                             topMargin=1.5*cm, bottomMargin=2*cm)
 
@@ -334,7 +531,7 @@ def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
             center_st
         ),
         Paragraph(
-            f"<b><font size='13'>FACTURA</font></b><br/>"
+            f"<b><font size='11'>{'NOTA DE CRÉDITO' if es_nota_credito else 'FACTURA'}</font></b><br/>"
             f"<font size='9'>Punto de Venta: <b>{pv_fmt}</b></font><br/>"
             f"<font size='9'>Comp. N°: <b>{nro_fmt}</b></font><br/>"
             f"<font size='9'>Fecha: <b>{(factura['fecha'] or '')[:10]}</b></font>",
@@ -455,6 +652,12 @@ def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]))
     story.append(cae_tbl)
+    if cbte_asoc_str:
+        story.append(Spacer(1, .15*cm))
+        story.append(Paragraph(
+            f"<b>Comp. asociado:</b> {cbte_asoc_str}",
+            styles['Normal'],
+        ))
     story.append(Spacer(1, .2*cm))
     story.append(Paragraph(
         "Documento generado por Sistema de Gestión · Comenda Deco",
@@ -466,8 +669,21 @@ def generar_pdf_factura(venta_id, venta, cliente, productos, factura):
     with open(abs_path, 'wb') as f:
         f.write(buf.getvalue())
 
-    logger.info("PDF factura guardado en %s", abs_path)
+    logger.info("PDF %s guardado en %s", suffix, abs_path)
     return rel_path
+
+
+def generar_pdf_nota_credito(venta_id, venta, cliente, productos, nc):
+    """Wrapper que genera el PDF de una NC reutilizando generar_pdf_factura."""
+    cbte_asoc_str = (
+        f"Factura {venta['factura_tipo']} "
+        f"N° {int(venta['factura_numero']):08d}"
+    )
+    return generar_pdf_factura(
+        venta_id, venta, cliente, productos, nc,
+        es_nota_credito=True,
+        cbte_asoc_str=cbte_asoc_str,
+    )
 
 
 # ── Padrón A13 ────────────────────────────────────────────────────────────────

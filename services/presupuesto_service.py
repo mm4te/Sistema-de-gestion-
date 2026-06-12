@@ -376,6 +376,7 @@ def generar_pdf(presupuesto_id):
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
+                            title=f"Presupuesto {p['numero']}",
                             rightMargin=2*cm, leftMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()

@@ -86,13 +86,21 @@ def init_db():
     if "vuelto" not in columnas_ventas:
         c.execute("ALTER TABLE ventas ADD COLUMN vuelto REAL")
     for col, defn in [
-        ("factura_emitida",  "INTEGER NOT NULL DEFAULT 0"),
-        ("factura_tipo",     "TEXT"),
-        ("factura_numero",   "INTEGER"),
-        ("factura_cae",      "TEXT"),
-        ("factura_cae_vto",  "TEXT"),
-        ("factura_pdf_path", "TEXT"),
-        ("factura_fecha",    "TEXT"),
+        ("factura_emitida",       "INTEGER NOT NULL DEFAULT 0"),
+        ("factura_tipo",          "TEXT"),
+        ("factura_numero",        "INTEGER"),
+        ("factura_cae",           "TEXT"),
+        ("factura_cae_vto",       "TEXT"),
+        ("factura_pdf_path",      "TEXT"),
+        ("factura_fecha",         "TEXT"),
+        ("nota_credito_emitida",  "INTEGER NOT NULL DEFAULT 0"),
+        ("nota_credito_tipo",     "TEXT"),
+        ("nota_credito_numero",   "INTEGER"),
+        ("nota_credito_cae",      "TEXT"),
+        ("nota_credito_cae_vto",  "TEXT"),
+        ("nota_credito_pdf_path", "TEXT"),
+        ("nota_credito_fecha",    "TEXT"),
+        ("nota_credito_motivo",   "TEXT"),
     ]:
         if col not in columnas_ventas:
             c.execute(f"ALTER TABLE ventas ADD COLUMN {col} {defn}")
