@@ -86,8 +86,13 @@ def detalle_venta(venta_id):
         FROM detalle_venta dv JOIN productos p ON dv.producto_id = p.id
         WHERE dv.venta_id = ?
     """, (venta_id,)).fetchall()
+    remito_venta = conn.execute(
+        "SELECT id, numero, estado FROM remitos WHERE venta_id = ? LIMIT 1",
+        (venta_id,),
+    ).fetchone()
     conn.close()
-    return render_template('detalle_venta.html', venta=venta, productos=productos)
+    return render_template('detalle_venta.html', venta=venta, productos=productos,
+                           remito_venta=remito_venta)
 
 
 @ventas_historial_bp.route('/venta/<int:venta_id>/cancelar', methods=['POST'])

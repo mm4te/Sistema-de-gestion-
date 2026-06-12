@@ -12,10 +12,29 @@
       🚫 Cancelar venta
     </button>
     {% endif %}
-    <a href="{{ url_for('remitos.nuevo', desde_venta=venta[0]) }}"
-       style="background:#17a2b8;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
-      🚚 Crear Remito
-    </a>
+    {% if remito_venta %}
+      {% if remito_venta['estado'] == 'en_transito' %}
+        {% set _rc = '#DBEAFE' %}{% set _rt = '#1D4ED8' %}{% set _rl = 'En tránsito' %}
+      {% elif remito_venta['estado'] == 'entregado' %}
+        {% set _rc = '#DCFCE7' %}{% set _rt = '#16A34A' %}{% set _rl = 'Entregado' %}
+      {% elif remito_venta['estado'] == 'devuelto' %}
+        {% set _rc = '#FEE2E2' %}{% set _rt = '#DC2626' %}{% set _rl = 'Devuelto' %}
+      {% else %}
+        {% set _rc = '#F3F4F6' %}{% set _rt = '#6B7280' %}{% set _rl = 'Pendiente' %}
+      {% endif %}
+      <a href="{{ url_for('remitos.detalle', remito_id=remito_venta['id']) }}"
+         style="background:#17a2b8;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;display:inline-flex;align-items:center;gap:6px;">
+        📍 Ver Seguimiento
+        <span style="background:{{ _rc }};color:{{ _rt }};padding:2px 8px;border-radius:20px;font-size:.78em;font-weight:700;">
+          {{ _rl }}
+        </span>
+      </a>
+    {% else %}
+      <a href="{{ url_for('remitos.nuevo', desde_venta=venta[0]) }}"
+         style="background:#17a2b8;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9em;">
+        🚚 Crear Remito
+      </a>
+    {% endif %}
     {% if venta['estado'] != 'cancelada' %}
       {% if not venta['factura_emitida'] %}
       <form method="post"

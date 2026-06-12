@@ -6,28 +6,20 @@
 
 <h1 style="margin: 16px 0;">✏️ Editar Cliente</h1>
 
-<form method="post">
+<form method="post" id="form-cliente">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
   <label for="nombre">Nombre *</label>
   <input type="text" id="nombre" name="nombre" required value="{{ cliente['nombre'] }}">
 
   <label for="tipo">Tipo de cliente *</label>
-  <select id="tipo" name="tipo" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
+  <select id="tipo" name="tipo"
+    style="width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:12px;">
     <option value="0" {{ 'selected' if cliente['tipo'] == 0 else '' }}>🛍️ Minorista</option>
     <option value="1" {{ 'selected' if cliente['tipo'] == 1 else '' }}>🏭 Mayorista</option>
   </select>
 
-  <label for="dni">DNI</label>
-  <input type="text" id="dni" name="dni" value="{{ cliente['dni'] or '' }}">
-
-  <label for="telefono">Teléfono</label>
-  <input type="text" id="telefono" name="telefono" value="{{ cliente['telefono'] or '' }}">
-
-  <label for="email">Email</label>
-  <input type="email" id="email" name="email" value="{{ cliente['email'] or '' }}">
-
-  <label for="cuit">CUIT</label>
-  <input type="text" id="cuit" name="cuit" value="{{ cliente['cuit'] or '' }}">
+  {% with c = cliente %}{% include '_campos_fiscales.html' %}{% endwith %}
 
   <button type="submit">💾 Guardar Cambios</button>
 </form>
