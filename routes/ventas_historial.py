@@ -250,6 +250,7 @@ def cancelar_venta(venta_id):
             logger.exception("Error generando PDF de NC venta #%s", venta_id)
 
     # ── Fase 3: transacción DB ────────────────────────────────────────────────
+    cancelado_ok = False
     conn = get_conn()
     try:
         update_sql    = "estado = 'cancelada', motivo_cancelacion = ?"
@@ -292,6 +293,7 @@ def cancelar_venta(venta_id):
                 venta['total'], venta['metodo_pago'], g.user_id,
             )
         conn.commit()
+        cancelado_ok = True
 
         detalle_audit = (
             f"Venta #{venta_id} cancelada. Total: ${venta['total']:.2f}."
@@ -327,6 +329,43 @@ def cancelar_venta(venta_id):
             flash(f"❌ Error al cancelar la venta: {e}", "error")
     finally:
         conn.close()
+
+    # ── Fase 4: sincronizar stock en Tiendanube ───────────────────────────────
+    # Solo ventas del panel propio: las que vienen de TN ya tienen su stock
+    # correcto allá (TN lo restaura al cancelar su propia orden).
+    if cancelado_ok and venta['metodo_pago'] != 'Tienda Nube':
+        from services.tiendanube_service import actualizar_stock_tn_service
+        _conn_tn = get_conn()
+        try:
+            for item in items:
+                row = _conn_tn.execute(
+                    "SELECT variant_id, stock FROM productos WHERE id = ?",
+                    (item['producto_id'],)
+                ).fetchone()
+                if not row or not row['variant_id']:
+                    continue
+                try:
+                    res = actualizar_stock_tn_service(row['variant_id'], row['stock'])
+                    if res.get('ok'):
+                        logger.info(
+                            "TN stock restaurado: producto_id=%s variant=%s stock=%s "
+                            "(venta #%s cancelada)",
+                            item['producto_id'], row['variant_id'], row['stock'], venta_id,
+                        )
+                    else:
+                        logger.error(
+                            "No se pudo actualizar stock en Tiendanube para producto %s "
+                            "(venta #%s cancelada). Verificar manualmente. Error: %s",
+                            item['producto_id'], venta_id, res.get('error'),
+                        )
+                except Exception as exc_tn:
+                    logger.error(
+                        "No se pudo actualizar stock en Tiendanube para producto %s "
+                        "(venta #%s cancelada). Verificar manualmente. Error: %s",
+                        item['producto_id'], venta_id, str(exc_tn),
+                    )
+        finally:
+            _conn_tn.close()
 
     return redirect(url_for('ventas_historial.detalle_venta', venta_id=venta_id))
 
