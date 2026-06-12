@@ -1,0 +1,380 @@
+{% extends 'base.html' %}
+{% block title %}Rentabilidad{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<style>
+  .rent-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+  .rent-title  { font-size:1.5rem; font-weight:700; color:#1E293B; }
+  .kpi-grid    { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+  .kpi-card    { background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:16px 20px; }
+  .kpi-label   { font-size:.8rem; color:#6B7280; text-transform:uppercase; letter-spacing:.04em; }
+  .kpi-value   { font-size:1.6rem; font-weight:700; color:#1E293B; margin-top:4px; }
+  .kpi-value.verde  { color:#16A34A; }
+  .kpi-value.rojo   { color:#DC2626; }
+  .kpi-value.azul   { color:#4361EE; }
+  .kpi-sub     { font-size:.78rem; color:#9CA3AF; margin-top:2px; }
+  .charts-row  { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:24px; }
+  .chart-card  { background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:18px; }
+  .chart-title { font-size:.95rem; font-weight:600; color:#374151; margin-bottom:14px; }
+  .filtros-bar { background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:14px 18px; margin-bottom:20px; display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  .filtros-bar label { font-size:.82rem; font-weight:600; color:#374151; display:block; margin-bottom:3px; }
+  .filtros-bar input, .filtros-bar select { padding:7px 10px; border:1px solid #D1D5DB; border-radius:6px; font-size:.9rem; }
+  .btn-primary { background:#4361EE; color:#fff; border:none; padding:8px 18px; border-radius:6px; font-size:.9rem; font-weight:600; cursor:pointer; }
+  .btn-outline { background:#fff; color:#4361EE; border:1.5px solid #4361EE; padding:7px 15px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+  .btn-outline:hover { background:#EEF2FF; }
+  .table-card  { background:#fff; border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; margin-bottom:20px; }
+  .tc-header   { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #F3F4F6; }
+  .tc-title    { font-size:.95rem; font-weight:600; color:#374151; }
+  table.rent-tbl { width:100%; border-collapse:collapse; font-size:.88rem; }
+  table.rent-tbl th { background:#F8FAFC; color:#374151; font-weight:700; padding:9px 12px; text-align:left; border-bottom:2px solid #E5E7EB; white-space:nowrap; cursor:pointer; user-select:none; }
+  table.rent-tbl th:hover { background:#EEF2FF; }
+  table.rent-tbl td { padding:9px 12px; border-bottom:1px solid #F3F4F6; vertical-align:middle; }
+  table.rent-tbl tr:last-child td { border-bottom:none; }
+  table.rent-tbl tr:hover td { background:#F8FAFC; }
+  .badge-verde { background:#DCFCE7; color:#166534; padding:2px 8px; border-radius:99px; font-size:.78rem; font-weight:600; }
+  .badge-rojo  { background:#FEE2E2; color:#991B1B; padding:2px 8px; border-radius:99px; font-size:.78rem; font-weight:600; }
+  .badge-ambar { background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:99px; font-size:.78rem; font-weight:600; }
+  .alert-warn  { background:#FEF3C7; border:1px solid #FCD34D; border-radius:8px; padding:12px 16px; color:#92400E; font-size:.9rem; margin-bottom:20px; }
+  .alert-note  { background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; padding:10px 16px; color:#1E40AF; font-size:.82rem; margin-bottom:14px; }
+  .text-right  { text-align:right; }
+  .th-sort-asc::after  { content:' ↑'; color:#4361EE; }
+  .th-sort-desc::after { content:' ↓'; color:#4361EE; }
+  @media(max-width:768px) { .charts-row { grid-template-columns:1fr; } }
+</style>
+
+<div class="rent-header">
+  <div>
+    <div class="rent-title"><i class="bi bi-graph-up-arrow"></i> Rentabilidad</div>
+    {% if data %}
+    <div style="font-size:.83rem;color:#9CA3AF;margin-top:2px;">
+      {{ data.fecha_desde }} al {{ data.fecha_hasta }} · {{ data.num_ventas }} venta(s)
+    </div>
+    {% endif %}
+  </div>
+  {% if data %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="{{ url_for('rentabilidad.excel', fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, origen=origen) }}"
+       class="btn-outline"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="{{ url_for('rentabilidad.pdf', fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, origen=origen) }}"
+       class="btn-outline"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Filtros ─────────────────────────────────────────────────────────────── #}
+<form method="get" class="filtros-bar">
+  <div>
+    <label>Desde</label>
+    <input type="date" name="fecha_desde" value="{{ fecha_desde }}">
+  </div>
+  <div>
+    <label>Hasta</label>
+    <input type="date" name="fecha_hasta" value="{{ fecha_hasta }}">
+  </div>
+  <div>
+    <label>Origen venta</label>
+    <select name="origen">
+      <option value="">Todas</option>
+      <option value="tiendanube" {% if origen=='tiendanube' %}selected{% endif %}>Tienda Nube</option>
+      <option value="negocio"    {% if origen=='negocio'    %}selected{% endif %}>Negocio</option>
+    </select>
+  </div>
+  <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+</form>
+
+{% if error_msg %}
+<div class="alert-warn"><i class="bi bi-exclamation-triangle"></i> Error al cargar datos: {{ error_msg }}</div>
+{% endif %}
+
+{% if data %}
+
+{# ── KPI Cards ───────────────────────────────────────────────────────────── #}
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Total facturado</div>
+    <div class="kpi-value azul">${{ data.facturado | pesos }}</div>
+    <div class="kpi-sub">Con descuentos aplicados</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">COGS</div>
+    <div class="kpi-value">${{ data.cogs | pesos }}</div>
+    <div class="kpi-sub">Costo mercadería vendida</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Ganancia bruta</div>
+    <div class="kpi-value {% if data.ganancia_bruta >= 0 %}verde{% else %}rojo{% endif %}">
+      ${{ data.ganancia_bruta | pesos }}
+    </div>
+    <div class="kpi-sub">Facturado − COGS</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Margen bruto</div>
+    <div class="kpi-value {% if data.margen_bruto >= 0 %}verde{% else %}rojo{% endif %}">
+      {{ data.margen_bruto }}%
+    </div>
+    <div class="kpi-sub">Sobre total facturado</div>
+  </div>
+</div>
+
+{% if data.sin_costo %}
+<div class="alert-warn">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <strong>{{ data.sin_costo|length }} producto(s) sin costo cargado</strong>
+  no se incluyen en el cálculo de COGS ni margen. Podés cargar el costo en
+  <a href="/inventario" style="color:#92400E;font-weight:600;">Inventario</a>.
+</div>
+{% endif %}
+
+<div class="alert-note">
+  <i class="bi bi-info-circle"></i>
+  El costo refleja el <strong>valor actual del producto</strong>, no necesariamente el costo al momento de la venta.
+</div>
+
+{# ── Gráficos ────────────────────────────────────────────────────────────── #}
+<div class="charts-row">
+  <div class="chart-card">
+    <div class="chart-title"><i class="bi bi-trophy"></i> Top 5 productos más rentables (ganancia $)</div>
+    <canvas id="chartTop5" height="160"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><i class="bi bi-graph-up"></i> Evolución margen bruto % (12 meses)</div>
+    <canvas id="chartEvol" height="160"></canvas>
+  </div>
+</div>
+
+{# ── Tabla productos ─────────────────────────────────────────────────────── #}
+{% if data.productos %}
+<div class="table-card">
+  <div class="tc-header">
+    <div class="tc-title">Rentabilidad por producto</div>
+    <div style="font-size:.8rem;color:#9CA3AF;">Click en encabezado para ordenar</div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="rent-tbl" id="tbl-rent">
+      <thead>
+        <tr>
+          <th data-col="0">Producto</th>
+          <th data-col="1" class="text-right">Unidades</th>
+          <th data-col="2" class="text-right">P. Venta Prom.</th>
+          <th data-col="3" class="text-right">Costo Unit.</th>
+          <th data-col="4" class="text-right">Margen Unit. $</th>
+          <th data-col="5" class="text-right">Margen %</th>
+          <th data-col="6" class="text-right">Ingresos</th>
+          <th data-col="7" class="text-right">COGS</th>
+          <th data-col="8" class="text-right">Ganancia Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in data.productos %}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:#1E293B;">{{ p.descripcion }}</div>
+            {% if p.sku %}<div style="font-size:.75rem;color:#9CA3AF;">{{ p.sku }}</div>{% endif %}
+          </td>
+          <td class="text-right">{{ p.unidades }}</td>
+          <td class="text-right">${{ p.precio_promedio | pesos }}</td>
+          <td class="text-right">${{ p.costo | pesos }}</td>
+          <td class="text-right">
+            <span class="{% if p.margen_unitario >= 0 %}badge-verde{% else %}badge-rojo{% endif %}">
+              ${{ p.margen_unitario | pesos }}
+            </span>
+          </td>
+          <td class="text-right">
+            <span class="{% if p.margen_pct >= 30 %}badge-verde{% elif p.margen_pct >= 10 %}badge-ambar{% else %}badge-rojo{% endif %}">
+              {{ p.margen_pct }}%
+            </span>
+          </td>
+          <td class="text-right">${{ p.ingresos | pesos }}</td>
+          <td class="text-right">${{ p.cogs | pesos }}</td>
+          <td class="text-right" style="font-weight:700;">
+            <span class="{% if p.ganancia >= 0 %}badge-verde{% else %}badge-rojo{% endif %}">
+              ${{ p.ganancia | pesos }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div style="text-align:center;padding:40px;color:#9CA3AF;">
+  No hay productos con costo cargado vendidos en el período.
+</div>
+{% endif %}
+
+{# ── Productos sin costo ─────────────────────────────────────────────────── #}
+{% if data.sin_costo %}
+<div class="table-card">
+  <div class="tc-header">
+    <div class="tc-title" style="color:#D97706;">
+      <i class="bi bi-exclamation-triangle"></i> Productos sin costo cargado
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="rent-tbl">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="text-right">Unidades vendidas</th>
+          <th class="text-right">Ingresos (sin datos de margen)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in data.sin_costo %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ p.descripcion }}</div>
+            {% if p.sku %}<div style="font-size:.75rem;color:#9CA3AF;">{{ p.sku }}</div>{% endif %}
+          </td>
+          <td class="text-right">{{ p.unidades }}</td>
+          <td class="text-right">${{ p.ingresos | pesos }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}{# end if data #}
+{% endblock %}
+
+{% block scripts %}
+{% if data %}
+<script>
+(function () {
+  const PALETTE = ['#4361EE','#F72585','#7209B7','#3A0CA3','#4CC9F0',
+                   '#F3722C','#90BE6D','#43AA8B','#577590','#F8961E'];
+  const tickPesos = v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M'
+                                         : v >= 1e3 ? (v/1e3).toFixed(0)+'K'
+                                                    : v.toFixed(0));
+
+  // ── Top 5 barras horizontales ─────────────────────────────────────────────
+  const top5Labels  = {{ data.top5 | map(attribute='descripcion') | list | tojson }};
+  const top5Valores = {{ data.top5 | map(attribute='ganancia') | list | tojson }};
+  const top5Margen  = {{ data.top5 | map(attribute='margen_pct') | list | tojson }};
+
+  if (top5Labels.length) {
+    new Chart(document.getElementById('chartTop5'), {
+      type: 'bar',
+      data: {
+        labels:   top5Labels,
+        datasets: [{
+          label:           'Ganancia $',
+          data:            top5Valores,
+          backgroundColor: PALETTE.slice(0, top5Labels.length),
+          borderRadius:    5,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const i = ctx.dataIndex;
+                return [
+                  `Ganancia: ${tickPesos(ctx.parsed.x)}`,
+                  `Margen: ${top5Margen[i]}%`,
+                ];
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { callback: tickPesos } },
+          y: { ticks: { font: { size: 11 } } },
+        },
+      },
+    });
+  }
+
+  // ── Evolución margen 12 meses (línea) ────────────────────────────────────
+  const evolLabels  = {{ evol | map(attribute='label')   | list | tojson }};
+  const evolMargen  = {{ evol | map(attribute='margen')  | list | tojson }};
+  const evolFac     = {{ evol | map(attribute='facturado') | list | tojson }};
+
+  new Chart(document.getElementById('chartEvol'), {
+    type: 'line',
+    data: {
+      labels:   evolLabels,
+      datasets: [{
+        label:           'Margen %',
+        data:            evolMargen,
+        borderColor:     '#4361EE',
+        backgroundColor: 'rgba(67,97,238,.12)',
+        fill:            true,
+        tension:         .35,
+        pointRadius:     4,
+        pointBackgroundColor: '#4361EE',
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const i = ctx.dataIndex;
+              return [
+                `Margen: ${ctx.parsed.y}%`,
+                `Facturado: ${tickPesos(evolFac[i])}`,
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks:       { callback: v => v + '%' },
+          suggestedMin: 0,
+        },
+      },
+    },
+  });
+
+  // ── Tabla ordenable ───────────────────────────────────────────────────────
+  const tbl = document.getElementById('tbl-rent');
+  if (!tbl) return;
+  const tbody = tbl.querySelector('tbody');
+  let sortCol = 8, sortAsc = false;           // default: ganancia desc
+
+  function markHeader() {
+    tbl.querySelectorAll('th').forEach((th, i) => {
+      th.classList.remove('th-sort-asc', 'th-sort-desc');
+      if (i === sortCol) th.classList.add(sortAsc ? 'th-sort-asc' : 'th-sort-desc');
+    });
+  }
+
+  function sortTable(col) {
+    if (sortCol === col) { sortAsc = !sortAsc; }
+    else { sortCol = col; sortAsc = false; }
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      const av = a.cells[col].textContent.replace(/[$.\s%]/g, '').replace(',', '.').trim();
+      const bv = b.cells[col].textContent.replace(/[$.\s%]/g, '').replace(',', '.').trim();
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return sortAsc ? an - bn : bn - an;
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    markHeader();
+  }
+
+  tbl.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => sortTable(+th.dataset.col));
+  });
+  markHeader();
+})();
+</script>
+{% endif %}
+{% endblock %}

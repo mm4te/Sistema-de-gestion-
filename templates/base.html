@@ -79,6 +79,11 @@
       </a>
       {% endif %}
       {% if tiene_permiso('resumen', 'ver') %}
+      <a href="{{ url_for('rentabilidad.index') }}" {% if request.blueprint == 'rentabilidad' %}class="active"{% endif %}>
+        <i class="bi bi-graph-up-arrow"></i><span>Rentabilidad</span>
+      </a>
+      {% endif %}
+      {% if tiene_permiso('resumen', 'ver') %}
       <a href="/reporte/excel" {% if request.blueprint == 'reportes' %}class="active"{% endif %}>
         <i class="bi bi-graph-up"></i><span>Reportes</span>
       </a>
